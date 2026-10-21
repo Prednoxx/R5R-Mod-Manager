@@ -73,6 +73,6 @@ GitHub sources specify `repository`, ordered `refs`, `root`, `build` and `catego
 
 Downloads and package preparation run outside the UI thread. Packages stage on the game volume. Before installation, the app checks the target build, mod ID, version and archive paths. ZIP path traversal, symbolic links, duplicate paths, invalid Windows names and excessive archive sizes are rejected. GitHub directory downloads verify each file against its pinned Git blob hash.
 
-The shared installer detects an existing mod by ID, requests replacement confirmation, preserves its folder name, and moves the staged copy into place. Failed replacements restore the previous folder. Successful replacements send the previous folder to the Recycle Bin. If recycling fails, the backup remains beside the game folder and its location is recorded in `error.log`.
+The shared installer detects an existing mod by ID, requests replacement confirmation, preserves its folder name, and moves the staged copy into place. Failed replacements restore the previous folder. Successful replacements send the previous folder to the Recycle Bin, where it is available through Restore in the library. If recycling fails, the backup remains under the game's `.r5mm-backups` folder and its location is recorded in `error.log`.
 
 Updates require an explicit install action. Installed-package receipts record source, version and commit for the selected game folder. The app does not install S21 packages into S3 or replace game scripts from legacy packages.

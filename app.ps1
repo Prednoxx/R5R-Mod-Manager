@@ -1650,6 +1650,38 @@ function Remove-ToRecycleBin([string]$Path) {
         [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin)
 }
 
+function Move-ModDirectory([string]$Source, [string]$Destination) {
+    [IO.Directory]::Move($Source, $Destination)
+}
+
+function Get-RecycledModInfo([string]$Name, [string]$DeletedFrom) {
+    if (-not $script:ModsDir -or -not $DeletedFrom -or -not $Name -or
+        $Name -ne [IO.Path]::GetFileName($Name) -or $Name -in @('.', '..')) { return $null }
+    try {
+        $from = [IO.Path]::GetFullPath($DeletedFrom).TrimEnd('\')
+        $mods = [IO.Path]::GetFullPath($script:ModsDir).TrimEnd('\')
+        if ($from -ieq $mods) { return [pscustomobject]@{Name=$Name; ManagedBackup=$false} }
+        $backups = [IO.Path]::GetFullPath((Join-Path $script:GameDir '.r5mm-backups')).TrimEnd('\')
+        if ([IO.Path]::GetDirectoryName($from) -ieq $backups -and [IO.Path]::GetFileName($from) -match '^[a-f0-9]{32}$') {
+            return [pscustomobject]@{Name=$Name; ManagedBackup=$true}
+        }
+    } catch {}
+    return $null
+}
+
+function Get-ShortcutAction([string]$View, [string]$Key, [bool]$Control, [bool]$EditingText) {
+    if ($View -eq 'store') {
+        if ($Key -eq 'Escape') { return 'back' }
+        if ($Key -eq 'F' -and $Control) { return 'search-store' }
+        if ($Key -eq 'F5') { return 'refresh-store' }
+    } elseif ($View -eq 'library') {
+        if ($Key -eq 'F' -and $Control) { return 'search-library' }
+        if ($Key -eq 'F5') { return 'refresh-library' }
+        if ($Key -eq 'Delete' -and -not $EditingText) { return 'uninstall' }
+    }
+    return ''
+}
+
 function Get-Hwnd { return (New-Object System.Windows.Interop.WindowInteropHelper($window)).Handle }
 
 function Pick-Folder([string]$Title, [string]$Initial) {
@@ -1909,20 +1941,24 @@ function Install-Paths([string[]]$Paths, [switch]$MoveStaged) {
                 Set-Status ('Installing ' + $label)
                 Update-UI
                 $backups = @()
+                $destinationReady = $false
                 try {
                     $replace = @($existing | ForEach-Object { $_.Folder })
                     if ((Test-Path -LiteralPath $dest) -and $replace -notcontains $dest) { $replace += $dest }
                     foreach ($oldPath in $replace) {
                         if (-not (Test-Path -LiteralPath $oldPath)) { continue }
-                        $backup = Join-Path $script:GameDir ('.r5mm-backup-' + [guid]::NewGuid().ToString('N'))
-                        [IO.Directory]::Move($oldPath, $backup)
+                        $backupParent = Join-Path $script:GameDir ('.r5mm-backups/' + [guid]::NewGuid().ToString('N'))
+                        [void][IO.Directory]::CreateDirectory($backupParent)
+                        $backup = Join-Path $backupParent ([IO.Path]::GetFileName($oldPath))
+                        Move-ModDirectory $oldPath $backup
                         $backups += @{Original=$oldPath; Backup=$backup}
                     }
-                    if ($MoveStaged) { [IO.Directory]::Move($r, $dest) }
+                    $destinationReady = $true
+                    if ($MoveStaged) { Move-ModDirectory $r $dest }
                     else { Copy-Item -LiteralPath $r -Destination $dest -Recurse -Force }
                 } catch {
-                    if (Test-Path -LiteralPath $dest) { Remove-ToRecycleBin $dest }
-                    foreach ($backup in $backups) { [IO.Directory]::Move($backup.Backup, $backup.Original) }
+                    if ($destinationReady -and (Test-Path -LiteralPath $dest)) { Remove-ToRecycleBin $dest }
+                    foreach ($backup in $backups) { Move-ModDirectory $backup.Backup $backup.Original }
                     throw
                 }
                 foreach ($backup in $backups) {
@@ -2073,10 +2109,11 @@ function Get-RecycledMods {
         foreach ($it in @($shell.Namespace(10).Items())) {
             if (-not $it.IsFolder) { continue }
             $from = [string]$it.ExtendedProperty('System.Recycle.DeletedFrom')
-            if (-not $from -or ($from.TrimEnd('\') -ine $script:ModsDir.TrimEnd('\'))) { continue }
+            $info = Get-RecycledModInfo ([string]$it.Name) $from
+            if (-not $info) { continue }
             $date = $null
             try { $date = [datetime]$it.ExtendedProperty('System.Recycle.DateDeleted') } catch {}
-            $list.Add([pscustomobject]@{ Name = [string]$it.Name; Item = $it; Date = $date })
+            $list.Add([pscustomobject]@{ Name = $info.Name; Item = $it; Date = $date; ManagedBackup = $info.ManagedBackup })
         }
     } catch { Write-Log ('Recycle Bin: ' + $_.Exception.Message) }
     $sorted = New-Object System.Collections.Generic.List[object]
@@ -2087,8 +2124,10 @@ function Get-RecycledMods {
 function Restore-Recycled($Entry) {
     $target = Join-Path $script:ModsDir $Entry.Name
     if (Test-Path -LiteralPath $target) { throw ($Entry.Name + ' is already in the mods folder.') }
-    try { $Entry.Item.InvokeVerb('undelete') } catch {}
-    for ($i = 0; $i -lt 40 -and -not (Test-Path -LiteralPath $target); $i++) { Start-Sleep -Milliseconds 100 }
+    if (-not $Entry.ManagedBackup) {
+        try { $Entry.Item.InvokeVerb('undelete') } catch {}
+        for ($i = 0; $i -lt 40 -and -not (Test-Path -LiteralPath $target); $i++) { Start-Sleep -Milliseconds 100 }
+    }
     if (-not (Test-Path -LiteralPath $target)) {
         $shell = New-Object -ComObject Shell.Application
         $shell.Namespace($script:ModsDir).MoveHere($Entry.Item, 0x14)
@@ -2294,12 +2333,21 @@ $window.Add_PreviewKeyDown({
         elseif ($e.Key -eq 'Return') { $e.Handled = $true; Close-Dialog $true }
         return
     }
-    if ($e.Key -eq 'Escape' -and $script:StoreMode) { if ($ImageOverlay.Visibility -eq 'Visible') { $ImageOverlay.Visibility='Collapsed' } else { Close-StoreDetail }; $e.Handled=$true; return }
-    if ($e.Key -eq 'F' -and ([System.Windows.Input.Keyboard]::Modifiers -band [System.Windows.Input.ModifierKeys]::Control)) {
-        $e.Handled = $true; if ($script:StoreMode) { [void]$StoreSearch.Focus() } else { [void]$SearchBox.Focus() }; return
+    $control = [bool]([System.Windows.Input.Keyboard]::Modifiers -band [System.Windows.Input.ModifierKeys]::Control)
+    $editing = [System.Windows.Input.Keyboard]::FocusedElement -is [System.Windows.Controls.Primitives.TextBoxBase]
+    $action = Get-ShortcutAction $script:ActiveView ([string]$e.Key) $control $editing
+    if (-not $action) { return }
+    $e.Handled = $true
+    Invoke-Safe {
+        switch ($action) {
+            'back' { if ($ImageOverlay.Visibility -eq 'Visible') { $ImageOverlay.Visibility='Collapsed' } else { Close-StoreDetail } }
+            'search-store' { Close-StoreDetail; [void]$StoreSearch.Focus() }
+            'search-library' { [void]$SearchBox.Focus() }
+            'refresh-store' { Start-StoreSync $true }
+            'refresh-library' { if (Require-Game) { Reload-All } }
+            'uninstall' { Remove-SelectedMod }
+        }
     }
-    if ($e.Key -eq 'F5') { $e.Handled = $true; Invoke-Safe { if ($script:StoreMode) { Start-StoreSync $true } elseif (Require-Game) { Reload-All } }; return }
-    if ($e.Key -eq 'Delete' -and -not $script:StoreMode -and -not $SearchBox.IsKeyboardFocusWithin) { $e.Handled = $true; Invoke-Safe { Remove-SelectedMod } }
 })
 
 # drag and drop

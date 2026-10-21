@@ -1,4 +1,4 @@
-param([switch]$Live)
+param([switch]$Live, [switch]$Recycle)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $sandbox = Join-Path ([IO.Path]::GetTempPath()) ('r5mm-tests-' + [guid]::NewGuid().ToString('N'))
@@ -21,7 +21,7 @@ function Import-AppFunction([string]$Name) {
     if (-not $definition) { throw ('Function not found: ' + $Name) }
     . ([scriptblock]::Create($definition.Extent.Text.Replace('function '+$Name, 'function script:'+$Name)))
 }
-foreach ($name in @('ConvertFrom-Vdf','Get-VdfString','Read-ModVdf','Scan-Mods','Find-Catalog','Analyze-Mods','Install-Paths','Save-ModState')) { Import-AppFunction $name }
+foreach ($name in @('ConvertFrom-Vdf','Get-VdfString','Read-ModVdf','Scan-Mods','Find-Catalog','Analyze-Mods','Install-Paths','Save-ModState','Move-ModDirectory','Get-RecycledModInfo','Get-ShortcutAction')) { Import-AppFunction $name }
 $text = [IO.File]::ReadAllText((Join-Path $root 'app.ps1'))
 $types = [regex]::Match($text, "(?s)Add-Type -TypeDefinition @'\r?\n(.*?)\r?\n'@")
 Add-Type -TypeDefinition $types.Groups[1].Value
@@ -54,6 +54,37 @@ function Make-Mod([string]$Path, [string]$Id, [string]$Version='1.0') {
     [IO.File]::WriteAllText((Join-Path $Path 'mod.vdf'), ('"mod" { "id" "' + $Id + '" "name" "Fixture" "version" "' + $Version + '" }'))
 }
 try {
+    $storeErrors = $null
+    $storeAst = [Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'lib/Store.ps1'), [ref]$null, [ref]$storeErrors)
+    Assert (-not $storeErrors) 'Store syntax'
+    $tickAst = $storeAst.FindAll({param($node)
+        $node -is [Management.Automation.Language.InvokeMemberExpressionAst] -and
+        $node.Expression.Extent.Text -eq '$storeTimer' -and $node.Member.Value -eq 'Add_Tick'
+    }, $true) | Select-Object -First 1
+    $script:TestStoreTick = $tickAst.Arguments[0].ScriptBlock.GetScriptBlock()
+    $storeTimer = [pscustomobject]@{}
+    $storeTimer | Add-Member -MemberType ScriptMethod -Name Stop -Value {}
+    $script:PackageQueue = New-Object System.Collections.Queue
+    $script:PackageQueue.Enqueue('first')
+    $script:StoreJob = $null; $script:PackageJob = $null; $script:QueueStarts = 0
+    function Start-StoreInstall {
+        $script:QueueStarts++
+        if ($script:QueueStarts -eq 1) {
+            $script:PackageQueue.Enqueue('second')
+            & $script:TestStoreTick
+        }
+    }
+    & $script:TestStoreTick
+    Assert ($script:QueueStarts -eq 1 -and $script:PackageQueue.Count -eq 1) 'Nested dispatcher ticks cannot advance the installation queue'
+    & $script:TestStoreTick
+    Assert ($script:QueueStarts -eq 2 -and $script:PackageQueue.Count -eq 0 -and -not $script:StoreTickActive) 'Installation queue resumes after the active tick finishes'
+    Remove-Item function:Start-StoreInstall
+    foreach ($view in @('settings','downloads','store')) {
+        Assert ((Get-ShortcutAction $view 'Delete' $false $false) -eq '') ('Delete cannot uninstall from ' + $view)
+    }
+    Assert ((Get-ShortcutAction 'library' 'Delete' $false $false) -eq 'uninstall') 'Delete applies to the library only'
+    Assert ((Get-ShortcutAction 'library' 'Delete' $false $true) -eq '') 'Editing text cannot trigger uninstall'
+    Assert ((Get-ShortcutAction 'store' 'F' $true $false) -eq 'search-store') 'Store search shortcut has an explicit route'
     $card=New-Object R5MM.CatalogCard -Property @{Name='Preview';PreviewPath=(Join-Path $root 'assets/icon.png')}
     $image=New-Object Windows.Controls.Image
     $image.DataContext=$card
@@ -120,6 +151,19 @@ try {
     Install-Paths @((Join-Path $stage 'Fixture.Mod')) -MoveStaged
     Assert ((Read-ModVdf (Join-Path $script:ModsDir 'Fixture.Mod/mod.vdf')).Version -eq '2.0') 'Confirmed replacement installs the new version'
     Assert (@(Get-ChildItem $sandbox -Directory -Filter 'recycled-*').Count -eq 1) 'Replaced mod retained for recovery'
+    $recovery = Get-RecycledModInfo 'Fixture.Mod' (Join-Path $script:GameDir '.r5mm-backups/0123456789abcdef0123456789abcdef')
+    Assert ($recovery -and $recovery.ManagedBackup -and $recovery.Name -eq 'Fixture.Mod') 'Replaced mods are discoverable by Restore'
+    Assert (-not (Get-RecycledModInfo 'Fixture.Mod' (Join-Path $sandbox 'unrelated'))) 'Restore ignores unrelated recycled folders'
+    Assert (-not (Get-RecycledModInfo '..\outside' $script:ModsDir)) 'Restore rejects a folder name outside the mods directory'
+    $beforeRecycle = @(Get-ChildItem $sandbox -Directory -Filter 'recycled-*').Count
+    $savedMove = (Get-Item function:Move-ModDirectory).ScriptBlock
+    function Move-ModDirectory { throw 'Simulated backup move failure' }
+    Make-Mod (Join-Path $sandbox 'failed-backup') 'Fixture.Mod' '3.0'
+    Scan-Mods
+    Install-Paths @((Join-Path $sandbox 'failed-backup'))
+    Set-Item function:Move-ModDirectory $savedMove
+    Assert ((Read-ModVdf (Join-Path $script:ModsDir 'Fixture.Mod/mod.vdf')).Version -eq '2.0') 'Failed backup move leaves the original mod in place'
+    Assert (@(Get-ChildItem $sandbox -Directory -Filter 'recycled-*').Count -eq $beforeRecycle) 'Failed backup move never recycles the untouched original'
     Scan-Mods
     Make-Mod (Join-Path $sandbox 'copy-source') 'Fixture.Mod' '3.0'
     function Copy-Item { throw 'Simulated copy failure' }
@@ -142,6 +186,19 @@ try {
     [IO.File]::WriteAllText((Join-Path $feedDir 'mods.json'), '{invalid')
     $result = Sync-ModCatalog $feedDir (Join-Path $sandbox 'empty-cache') $true
     Assert ($result.Items.Count -eq 0 -and $result.Sources[0].Count -eq 0 -and $result.Sources[0].State -eq 'Unavailable') 'First-source failure reports zero listings'
+    if ($Recycle) {
+        Import-AppFunction 'Remove-ToRecycleBin'
+        Import-AppFunction 'Get-RecycledMods'
+        Import-AppFunction 'Restore-Recycled'
+        $nativeParent=Join-Path $script:GameDir ('.r5mm-backups/'+[guid]::NewGuid().ToString('N'))
+        $nativeMod=Join-Path $nativeParent 'RecoveryFixture'
+        Make-Mod $nativeMod 'Recovery.Fixture' '1.0'
+        Remove-ToRecycleBin $nativeMod
+        $recycled=@(Get-RecycledMods) | Where-Object Name -eq 'RecoveryFixture' | Select-Object -First 1
+        Assert ($recycled -and $recycled.ManagedBackup) 'Windows Recycle Bin exposes replacement backups to Restore'
+        Assert (Restore-Recycled $recycled) 'Windows replacement backup restores to the mods directory'
+        Assert ((Read-ModVdf (Join-Path $script:ModsDir 'RecoveryFixture/mod.vdf')).Id -eq 'Recovery.Fixture') 'Restored backup retains its mod manifest'
+    }
     if ($Live) {
         $result = Sync-ModCatalog (Join-Path $root 'catalog') (Join-Path $sandbox 'live-cache') $true
         Assert (@($result.Sources | Where-Object State -ne 'Current').Count -eq 0) 'Live source synchronization'

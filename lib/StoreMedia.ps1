@@ -19,6 +19,7 @@ function Set-NavActive([string]$Name) {
 
 function Show-Utility([string]$Page) {
     $script:StoreMode = $false
+    $script:ActiveView = $Page
     $StoreView.Visibility = 'Collapsed'; $LibraryView.Visibility = 'Collapsed'; $UtilityView.Visibility = 'Visible'
     $SettingsView.Visibility = if ($Page -eq 'settings') { 'Visible' } else { 'Collapsed' }
     $DownloadsView.Visibility = if ($Page -eq 'downloads') { 'Visible' } else { 'Collapsed' }

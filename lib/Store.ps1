@@ -5,12 +5,14 @@ $script:PackageJob = $null
 $script:PackageQueue = New-Object System.Collections.Queue
 $script:StoreFilterLoading = $false
 $script:StoreMode = $true
+$script:ActiveView = 'store'
 $script:StoreCache = Join-Path $SettingsDir 'catalog'
 $script:StoreReceipts = Read-CatalogJson (Join-Path $SettingsDir 'installed-packages.json')
 if (-not $script:StoreReceipts) { $script:StoreReceipts = [pscustomobject]@{} }
 
 function Show-AppView([bool]$Store) {
     $script:StoreMode=$Store
+    $script:ActiveView=if($Store){'store'}else{'library'}
     $UtilityView.Visibility='Collapsed'
     $StoreView.Visibility=if($Store){'Visible'}else{'Collapsed'}
     $LibraryView.Visibility=if($Store){'Collapsed'}else{'Visible'}
@@ -71,7 +73,8 @@ function Fill-Store {
         default { $rows = @($rows | Sort-Object Name,Author) }
     }
     $StoreList.ItemsSource = $rows
-    $StoreCount.Text = '{0} mods  /  {1} in catalog' -f $rows.Count,$script:StoreItems.Count
+    $noun = if ($rows.Count -eq 1) { 'mod' } else { 'mods' }
+    $StoreCount.Text = '{0} {1}  /  {2} in catalog' -f $rows.Count,$noun,$script:StoreItems.Count
     $StoreEmpty.Text = if ($script:StoreItems.Count -eq 0) { 'No catalog available. Refresh to retry.' } else { 'No matching mods' }
     $StoreEmpty.Visibility = if ($rows.Count -eq 0) { 'Visible' } else { 'Collapsed' }
     $selection = $rows | Where-Object { $_.Key -eq $keep } | Select-Object -First 1
@@ -169,6 +172,9 @@ function Start-StoreInstall($EntryOverride = $null) {
 $storeTimer = New-Object System.Windows.Threading.DispatcherTimer
 $storeTimer.Interval = [TimeSpan]::FromMilliseconds(150)
 $storeTimer.Add_Tick({
+    if ($script:StoreTickActive) { return }
+    $script:StoreTickActive = $true
+    try {
     if ($script:StoreJob) {
         $job = $script:StoreJob
         $StoreSyncText.Text = $job.Progress.Text
@@ -230,6 +236,7 @@ $storeTimer.Add_Tick({
     if ($script:PackageQueue.Count -gt 0 -and -not $script:PackageJob -and -not $script:ModScan) {
         Start-StoreInstall ($script:PackageQueue.Dequeue())
     }
+    } finally { $script:StoreTickActive = $false }
 })
 
 $storeRefreshTimer = New-Object System.Windows.Threading.DispatcherTimer

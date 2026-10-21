@@ -36,9 +36,10 @@ The installer supports the R5Reloaded S3 layout: `mods/<folder>/mod.vdf` and `mo
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File build.ps1 -Package
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/run.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/run.ps1 -Live
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/run.ps1 -Live -Recycle
 ```
 
-The build uses the Windows .NET Framework compiler. The portable archive is written to `dist/R5R-Mod-Manager-3.2.zip`. Tests use temporary game folders. `-Live` also checks the configured sources and downloads a pinned official mod.
+The build uses the Windows .NET Framework compiler. The portable archive is written to `dist/R5R-Mod-Manager-3.2.zip`. Tests use temporary game folders. `-Live` also checks the configured sources and downloads a pinned official mod. `-Recycle` verifies replacement recovery through the Windows Recycle Bin using a temporary mod.
 
 ## Data
 
