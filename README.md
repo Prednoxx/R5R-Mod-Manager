@@ -1,12 +1,14 @@
 # R5R Mod Manager
 
-Windows mod manager for [R5Reloaded](https://r5reloaded.com).
+Windows mod manager for [R5Reloaded](https://r5reloaded.com), written in C# with WPF.
 
 ## Run
 
-Extract the portable package and open **R5R Mod Manager.exe**. Keep `app.ps1`, `assets`, `catalog`, `lib` and `ui` beside the executable. The app detects an existing game folder or accepts one in Settings.
+Extract the complete portable package and open **R5R Mod Manager.exe**. Keep `R5R Mod Manager.exe.config`, `assets`, `catalog`, `docs` and `ui` beside the executable. The app detects an existing game folder or accepts one in Settings.
 
-Requires Windows 10 or 11, .NET Framework 4.8 and Windows PowerShell 5.1. These are included with supported Windows installations. The executable hosts the application directly without opening a console window.
+Requires Windows 10 or 11 and .NET Framework 4.8. The application runs directly as a Windows executable without a console window or scripting runtime.
+
+Existing game selection, themes, presets, favorites, package receipts and catalog caches are preserved. Before saving an existing settings file, version 3.3 creates `settings.json.pre-3.3.bak` in the settings directory. Installed mod files and enabled states remain unchanged during startup.
 
 ## Features
 
@@ -32,14 +34,17 @@ The installer supports the R5Reloaded S3 layout: `mods/<folder>/mod.vdf` and `mo
 
 ## Build and test
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File build.ps1 -Package
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/run.ps1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/run.ps1 -Live
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/run.ps1 -Live -Recycle
+```bat
+build.cmd
+build.cmd test
+build.cmd test live recycle package
 ```
 
-The build uses the Windows .NET Framework compiler. The portable archive is written to `dist/R5R-Mod-Manager-3.2.zip`. Tests use temporary game folders. `-Live` also checks the configured sources and downloads a pinned official mod. `-Recycle` verifies replacement recovery through the Windows Recycle Bin using a temporary mod.
+The build uses the Windows .NET Framework C# compiler and framework assemblies. No package restore is required. Application files are written to `bin/Release`; the portable archive is `dist/R5R-Mod-Manager-3.3.zip`. `build.cmd` is a developer build command; the application starts through its executable.
+
+Tests use temporary game folders. `live` checks configured sources and downloads a pinned official package. `recycle` verifies Windows Recycle Bin recovery using a temporary mod. GitHub Actions runs the offline suite and builds the portable package.
+
+`R5RModManager.csproj` is provided for Visual Studio with the .NET Framework 4.8 development tools.
 
 ## Data
 
@@ -48,6 +53,8 @@ Settings, favorites, installed-package receipts, catalog snapshots, previews and
 [Catalog sources and feed format](docs/catalog.md)
 
 [Usage guide](docs/usage.md)
+
+[Application structure](docs/architecture.md)
 
 ## Credits and license
 

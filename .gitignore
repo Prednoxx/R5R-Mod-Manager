@@ -3,3 +3,7 @@ Thumbs.db
 *.lnk
 dist/
 Mod Manager Build Related/
+bin/
+obj/
+.vs/
+*.user
