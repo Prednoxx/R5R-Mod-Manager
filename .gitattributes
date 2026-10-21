@@ -1,0 +1,4 @@
+*.cmd -text
+*.png binary
+*.jpg binary
+*.ico binary
