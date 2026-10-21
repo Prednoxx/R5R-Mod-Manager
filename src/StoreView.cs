@@ -67,10 +67,11 @@ namespace R5R {
             else { Text("StoreCompatibility", "Installs to the selected R5Reloaded mods folder. Existing copies require replacement confirmation."); button.Content = status == "Installed" ? "Reinstall" : status == "Update available" ? "Update" : status == "Newer installed" ? "Install older version" : status == "Different version" ? "Change version" : "Install"; button.IsEnabled = !installing && !mutating && !scanning; }
         }
         async Task OpenDetail(CatalogEntry entry) {
-            if (entry == null) return; if (detailCancellation != null) detailCancellation.Cancel(); detailCancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token); var token = detailCancellation.Token;
+            if (entry == null || closing) return; if (detailCancellation != null) detailCancellation.Cancel(); var cancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token); detailCancellation = cancellation; var token = cancellation.Token;
             detailKey = entry.Key; Visible("StoreBrowse", false); Visible("StoreDetails", true); Element<ScrollViewer>("StoreDetails").ScrollToTop(); Element<Image>("StoreHero").Source = MediaService.Bitmap(media.Preview(entry), 1200); Text("StoreDetailDescription", entry.Description); Element<ItemsControl>("StoreGallery").ItemsSource = null; Visible("StoreGalleryWrap", false); UpdateStoreDetails();
             try { var details = await Task.Run(() => media.Details(entry, token), token); if (token.IsCancellationRequested || detailKey != entry.Key || closing) return; Text("StoreDetailDescription", details.Body); var images = (details.Images ?? new string[0]).Where(File.Exists).ToArray(); Element<ItemsControl>("StoreGallery").ItemsSource = images; Visible("StoreGalleryWrap", images.Length > 0); if (images.Length > 0) Element<Image>("StoreHero").Source = MediaService.Bitmap(images[0], 1200); }
             catch (OperationCanceledException) { } catch (Exception ex) { paths.Log("Mod details: " + ex.Message); }
+            finally { if (detailCancellation == cancellation) detailCancellation = null; cancellation.Dispose(); }
         }
         void CloseDetail() { detailKey = null; if (detailCancellation != null) detailCancellation.Cancel(); Visible("StoreBrowse", true); Visible("StoreDetails", false); Visible("ImageOverlay", false); }
         async Task Sync(bool force) {
@@ -83,8 +84,8 @@ namespace R5R {
             finally { synchronizing = false; Element<Button>("BtnStoreRefresh").IsEnabled = true; }
         }
         void BeginImages() {
-            if (imageCancellation != null) imageCancellation.Cancel(); imageCancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token); var token = imageCancellation.Token; var entries = listings.Items.ToArray();
-            Fire(async () => { try { await Task.Run(() => media.CacheImages(entries, (key, path) => Window.Dispatcher.BeginInvoke(new Action(() => { if (closing || token.IsCancellationRequested) return; foreach (var row in Element<ListBox>("StoreList").Items.OfType<CatalogCard>().Where(c => c.Key == key)) row.PreviewPath = path; if (detailKey == key && Element<ItemsControl>("StoreGallery").Items.Count == 0) Element<Image>("StoreHero").Source = MediaService.Bitmap(path, 1200); })), token), token); } catch (OperationCanceledException) { } });
+            if (closing) return; if (imageCancellation != null) imageCancellation.Cancel(); var cancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token); imageCancellation = cancellation; var token = cancellation.Token; var entries = listings.Items.ToArray();
+            Fire(async () => { try { await Task.Run(() => media.CacheImages(entries, (key, path) => Window.Dispatcher.BeginInvoke(new Action(() => { if (closing || token.IsCancellationRequested) return; foreach (var row in Element<ListBox>("StoreList").Items.OfType<CatalogCard>().Where(c => c.Key == key)) row.PreviewPath = path; if (detailKey == key && Element<ItemsControl>("StoreGallery").Items.Count == 0) Element<Image>("StoreHero").Source = MediaService.Bitmap(path, 1200); })), token), token); } catch (OperationCanceledException) { } finally { if (imageCancellation == cancellation) imageCancellation = null; cancellation.Dispose(); } });
         }
         async Task SourceInfo() { var text = String.Join(Environment.NewLine + Environment.NewLine, listings.Sources.Select(s => s.Name + " — " + s.State + " (" + s.Count + " listings)" + (String.IsNullOrEmpty(s.Error) ? "" : Environment.NewLine + s.Error))); await ShowDialog("Catalog sources", text.Length > 0 ? text : "Sources are loading.", "OK", null, false); }
     }

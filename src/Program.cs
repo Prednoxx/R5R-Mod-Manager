@@ -9,8 +9,8 @@ using System.Windows;
 [assembly: AssemblyProduct("R5R Mod Manager")]
 [assembly: AssemblyCompany("Prednoxx")]
 [assembly: AssemblyCopyright("Copyright (C) 2026 Prednoxx")]
-[assembly: AssemblyVersion("3.3.0.0")]
-[assembly: AssemblyFileVersion("3.3.0.0")]
+[assembly: AssemblyVersion("3.3.1.0")]
+[assembly: AssemblyFileVersion("3.3.1.0")]
 namespace R5R {
     public static class Program {
         [STAThread] public static int Main(string[] arguments) {

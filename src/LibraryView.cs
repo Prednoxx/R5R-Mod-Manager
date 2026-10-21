@@ -12,12 +12,12 @@ using System.Windows.Media;
 namespace R5R {
     public sealed partial class MainWindowController {
         async Task ReloadLibrary() {
-            if (!GameLocator.Valid(settings.GameDir) || installing || mutating) return;
+            if (closing || !GameLocator.Valid(settings.GameDir) || installing || mutating) return;
             if (scanCancellation != null) scanCancellation.Cancel(); var cancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token); scanCancellation = cancellation; var token = cancellation.Token; var game = settings.GameDir;
             scanning = true; if (library != null && !String.Equals(library.GameDir, game, StringComparison.OrdinalIgnoreCase)) library = null; SetBusy(); Status("Scanning mods", false);
             try { var cache = new Dictionary<string, string[]>(settings.ConVarCache, StringComparer.OrdinalIgnoreCase); var result = await Task.Run(() => LibraryService.Scan(game, cache, token), token); if (token.IsCancellationRequested || !String.Equals(game, settings.GameDir, StringComparison.OrdinalIgnoreCase)) return; library = result; settings.ConVarCache = result.ConVarCache; settings.Save(paths); FillLibrary(); Status(String.IsNullOrEmpty(result.StateError) ? "Ready" : "mods.vdf could not be read. Repair it before changing mods.", !String.IsNullOrEmpty(result.StateError)); Trace("mods ready: " + library.Mods.Count); }
             catch (OperationCanceledException) { }
-            finally { if (scanCancellation == cancellation) { scanning = false; SetBusy(); FillStore(); } cancellation.Dispose(); }
+            finally { if (scanCancellation == cancellation) { scanCancellation = null; scanning = false; SetBusy(); FillStore(); } cancellation.Dispose(); }
         }
         void FillLibrary() {
             var list = Element<ListBox>("ModList"); var selected = list.SelectedItem as ModItem; var query = Element<TextBox>("SearchBox").Text.Trim();
@@ -96,9 +96,9 @@ namespace R5R {
             var entries = listings.Items.Where(e => e.Build == CatalogService.SupportedBuild && e.InstallKind != "manual" && ids.Contains(e.ModId)).ToArray();
             if (entries.Length == 0) { Status("Missing dependencies are not available in the configured catalog.", true); return; }
             if (!(await ShowDialog("Install missing mods", String.Join(Environment.NewLine, entries.Select(e => e.Name)), "Download", "Cancel", false)).Accepted) return;
-            queueCancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
-            try { foreach (var entry in entries) { queueCancellation.Token.ThrowIfCancellationRequested(); await InstallStore(entry, queueCancellation.Token); } }
-            finally { queueCancellation.Dispose(); queueCancellation = null; }
+            var cancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token); queueCancellation = cancellation; var token = cancellation.Token;
+            try { foreach (var entry in entries) { token.ThrowIfCancellationRequested(); await InstallStore(entry, token); } }
+            finally { if (queueCancellation == cancellation) queueCancellation = null; cancellation.Dispose(); }
         }
     }
 }

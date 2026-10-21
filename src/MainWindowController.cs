@@ -47,14 +47,15 @@ namespace R5R {
         void Visible(string name, bool visible) { Element<UIElement>(name).Visibility = visible ? Visibility.Visible : Visibility.Collapsed; }
         void Click(string name, Func<Task> handler) { Element<Button>(name).Click += (s, e) => Fire(handler); }
         Task Done() { return Task.FromResult(true); }
-        public MainWindowController(AppPaths paths) {
-            this.paths = paths; settings = AppSettings.Load(paths); network = new Network(paths.Cache); catalog = new CatalogService(paths, network); packages = new PackageService(network); media = new MediaService(paths, network); recovery = new WindowsRecovery(); installer = new Installer(recovery, new DirectoryMover(), paths.Log);
+        public MainWindowController(AppPaths paths) : this(paths, new Network(paths.Cache)) { }
+        internal MainWindowController(AppPaths paths, INetwork network) {
+            this.paths = paths; settings = AppSettings.Load(paths); this.network = network; catalog = new CatalogService(paths, network); packages = new PackageService(network); media = new MediaService(paths, network); recovery = new WindowsRecovery(); installer = new Installer(recovery, new DirectoryMover(), paths.Log);
             receipts = new Dictionary<string, Receipt>(Json.Read<Dictionary<string, Receipt>>(System.IO.Path.Combine(paths.Data, "installed-packages.json")) ?? new Dictionary<string, Receipt>(), StringComparer.OrdinalIgnoreCase);
             var savedFavorites = Json.Read<FavoritesDocument>(System.IO.Path.Combine(paths.Data, "favorites.json")); favorites = new HashSet<string>(savedFavorites == null || savedFavorites.Keys == null ? new string[0] : savedFavorites.Keys, StringComparer.OrdinalIgnoreCase);
             var markup = File.ReadAllText(System.IO.Path.Combine(paths.Root, "ui", "MainWindow.xaml"));
             foreach (var part in new[] { new[] { "store resources", "Resources.xaml" }, new[] { "sidebar", "Sidebar.xaml" }, new[] { "store view", "Store.xaml" }, new[] { "utility view", "Utility.xaml" } }) markup = markup.Replace("<!-- " + part[0] + " -->", File.ReadAllText(System.IO.Path.Combine(paths.Root, "ui", part[1])));
             Window = (Window)XamlReader.Parse(markup); Window.Resources["StoreCardWidth"] = 232.0; ThemeService.Fit(Window, SystemParameters.WorkArea); ThemeService.Apply(Window, paths, settings.Theme);
-            Window.Icon = MediaService.Bitmap(paths.Asset("icon.png"), 64); Element<Image>("TitleIcon").Source = Window.Icon; Visible("Mascot", false); Text("FooterText", "v3.3  ·  Prednoxx");
+            Window.Icon = MediaService.Bitmap(paths.Asset("icon.png"), 64); Element<Image>("TitleIcon").Source = Window.Icon; Visible("Mascot", false); Text("FooterText", "v3.3.1  ·  Prednoxx");
             WireEvents(); InitStore(); SetView("store");
             bool started = false; Window.ContentRendered += (s, e) => { if (!started) { started = true; Trace("rendered"); Fire(Initialize); } };
             Window.Closing += OnClosing;
@@ -71,7 +72,8 @@ namespace R5R {
         }
         async Task Initialize() {
             File.WriteAllText(System.IO.Path.Combine(paths.Data, "startup-trace.log"), ""); Trace("window ready");
-            try { listings = await Task.Run(() => catalog.ReadCache(), lifetime.Token); SetStoreFilters(); FillStore(); BeginImages(); } catch (Exception ex) { paths.Log("Catalog cache: " + ex.Message); }
+            try { listings = await Task.Run(() => catalog.ReadCache(), lifetime.Token); lifetime.Token.ThrowIfCancellationRequested(); SetStoreFilters(); FillStore(); BeginImages(); } catch (OperationCanceledException) { return; } catch (Exception ex) { paths.Log("Catalog cache: " + ex.Message); }
+            if (closing) return;
             Fire(() => Sync(false)); refreshTimer.Start(); processTimer.Start();
             if (GameLocator.Valid(settings.GameDir)) await SelectGame(settings.GameDir);
             else {
@@ -83,10 +85,14 @@ namespace R5R {
             Trace("startup complete");
         }
         async void OnClosing(object sender, CancelEventArgs e) {
-            if (allowClose) return; e.Cancel = true; if (closing) return; closing = true; lifetime.Cancel(); if (operationCancellation != null) operationCancellation.Cancel(); if (queueCancellation != null) queueCancellation.Cancel(); if (scanCancellation != null) scanCancellation.Cancel();
-            if (dialog != null) dialog.TrySetCanceled(); refreshTimer.Stop(); processTimer.Stop();
-            try { await Task.WhenAll(tasks.ToArray()); } catch (Exception ex) { if (!(ex is OperationCanceledException)) paths.Log("Shutdown: " + ex.Message); }
-            allowClose = true; var pending = Window.Dispatcher.BeginInvoke(new Action(() => Window.Close()));
+            if (allowClose) return; e.Cancel = true; if (closing) return; closing = true;
+            refreshTimer.Stop(); processTimer.Stop(); var pendingTasks = tasks.ToArray();
+            try {
+                // Every worker source is linked to lifetime and disposed by its owning operation.
+                lifetime.Cancel(); if (dialog != null) dialog.TrySetCanceled();
+                await Task.WhenAll(pendingTasks);
+            } catch (Exception ex) { if (!(ex is OperationCanceledException)) paths.Log("Shutdown: " + ex); }
+            finally { allowClose = true; var pending = Window.Dispatcher.BeginInvoke(new Action(() => Window.Close())); }
         }
         void Status(string message, bool warning) { Text("StatusText", message); Element<Ellipse>("StatusDot").SetResourceReference(System.Windows.Shapes.Shape.FillProperty, warning ? "Warn" : "TextFaint"); }
         void SetView(string view) {

@@ -46,7 +46,7 @@ namespace R5R.Tests {
         [STAThread] public static int Main(string[] args) {
             appRoot = AppDomain.CurrentDomain.BaseDirectory; sandbox = AreaRoot();
             try {
-                StorageTests(); VdfTests(); LibraryTests(); CatalogTests().GetAwaiter().GetResult(); PackageTests().GetAwaiter().GetResult(); InstallerTests(); MediaTests().GetAwaiter().GetResult(); UiTests();
+                StorageTests(); VdfTests(); LibraryTests(); CatalogTests().GetAwaiter().GetResult(); PackageTests().GetAwaiter().GetResult(); InstallerTests(); MediaTests().GetAwaiter().GetResult(); UiTests(); LifecycleTests();
                 if (args.Contains("--live")) LiveTests().GetAwaiter().GetResult();
                 if (args.Contains("--recycle")) RecycleTests().GetAwaiter().GetResult();
                 Check(!typeof(Program).Assembly.GetReferencedAssemblies().Any(a => a.Name.IndexOf("Management.Automation", StringComparison.OrdinalIgnoreCase) >= 0), "Application has no scripting-engine dependency");

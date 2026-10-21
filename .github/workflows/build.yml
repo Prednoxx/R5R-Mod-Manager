@@ -12,5 +12,5 @@ jobs:
         run: build.cmd test package
       - uses: actions/upload-artifact@v4
         with:
-          name: R5R-Mod-Manager-3.3
-          path: dist/R5R-Mod-Manager-3.3.zip
+          name: R5R-Mod-Manager-3.3.1
+          path: dist/R5R-Mod-Manager-3.3.1.zip

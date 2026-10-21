@@ -40,7 +40,7 @@ build.cmd test
 build.cmd test live recycle package
 ```
 
-The build uses the Windows .NET Framework C# compiler and framework assemblies. No package restore is required. Application files are written to `bin/Release`; the portable archive is `dist/R5R-Mod-Manager-3.3.zip`. `build.cmd` is a developer build command; the application starts through its executable.
+The build uses the Windows .NET Framework C# compiler and framework assemblies. No package restore is required. Application files are written to `bin/Release`; the portable archive is `dist/R5R-Mod-Manager-3.3.1.zip`. `build.cmd` is a developer build command; the application starts through its executable.
 
 Tests use temporary game folders. `live` checks configured sources and downloads a pinned official package. `recycle` verifies Windows Recycle Bin recovery using a temporary mod. GitHub Actions runs the offline suite and builds the portable package.
 

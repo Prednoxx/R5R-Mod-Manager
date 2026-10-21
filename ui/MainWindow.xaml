@@ -632,7 +632,7 @@
                   <Border x:Name="DlFill" Background="{DynamicResource AccentBg}" CornerRadius="3" HorizontalAlignment="Left" Width="0"/>
                 </Grid>
               </StackPanel>
-              <TextBlock x:Name="FooterText" Text="v3.3  &#x00B7;  Prednoxx" FontSize="11" Foreground="{DynamicResource TextFaint}" Margin="17,2,0,0"/>
+              <TextBlock x:Name="FooterText" Text="v3.3.1  &#x00B7;  Prednoxx" FontSize="11" Foreground="{DynamicResource TextFaint}" Margin="17,2,0,0"/>
             </StackPanel>
             <Button x:Name="BtnLaunch" Style="{StaticResource BtnAccent}" HorizontalAlignment="Right" Height="42" Width="200" Margin="0">
               <StackPanel Orientation="Horizontal">
