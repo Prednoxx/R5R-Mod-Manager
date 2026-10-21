@@ -941,8 +941,21 @@ foreach ($part in @(@('store resources','Resources.xaml'),@('sidebar','Sidebar.x
 }
 if ($env:R5MM_DIAGNOSTICS) { $listener=New-Object Diagnostics.TextWriterTraceListener((Join-Path $SettingsDir 'bindings.log')); [void][Diagnostics.PresentationTraceSources]::DataBindingSource.Listeners.Add($listener); [Diagnostics.PresentationTraceSources]::DataBindingSource.Switch.Level='All' }
 Trace 'xaml'
+function Fit-StartupWindow($Target, [Windows.Rect]$WorkArea) {
+    $availableWidth = [Math]::Max(1, $WorkArea.Width - 24)
+    $availableHeight = [Math]::Max(1, $WorkArea.Height - 24)
+    $Target.MinWidth = [Math]::Min($Target.MinWidth, $availableWidth)
+    $Target.MinHeight = [Math]::Min($Target.MinHeight, $availableHeight)
+    $Target.Width = [Math]::Min($Target.Width, $availableWidth)
+    $Target.Height = [Math]::Min($Target.Height, $availableHeight)
+    $Target.WindowStartupLocation = 'Manual'
+    $Target.Left = $WorkArea.Left + ($WorkArea.Width - $Target.Width) / 2
+    $Target.Top = $WorkArea.Top + ($WorkArea.Height - $Target.Height) / 2
+}
+
 try {
     $window = [System.Windows.Markup.XamlReader]::Parse($xaml)
+    Fit-StartupWindow $window ([Windows.SystemParameters]::WorkArea)
 } catch {
     Write-Log ('XAML: ' + $_.Exception.ToString())
     [void][System.Windows.MessageBox]::Show("R5R Mod Manager failed to load its interface.`r`n`r`n" + $_.Exception.Message, $AppName)
@@ -1371,6 +1384,9 @@ function Save-Settings {
 }
 
 function Set-GameDir([string]$Dir) {
+    if ($script:GameDir -and $script:GameDir -ine $Dir -and $script:PackageQueue) {
+        $script:PackageQueue.Clear()
+    }
     $script:GameDir     = $Dir
     $script:ModsDir     = Join-Path $Dir 'mods'
     $script:ModListPath = Join-Path $script:ModsDir 'mods.vdf'
@@ -1638,7 +1654,7 @@ $modTimer.Add_Tick({
 
 function Require-Game {
     if (-not $script:GameDir) {
-        [void](Show-Dialog 'No game folder' 'Choose the R5Reloaded folder (the one with r5apex.exe) first.' 'OK' '' 'warn')
+        [void](Show-Dialog 'No game folder' 'Choose the R5Reloaded folder in Settings. The folder must contain r5apex.exe.' 'OK' '' 'warn')
         return $false
     }
     return $true
@@ -1879,6 +1895,7 @@ function Install-Paths([string[]]$Paths, [switch]$MoveStaged) {
     $script:LastInstalledIds = @()
     if (-not (Require-Game)) { return }
     if ($script:ModScan) { Set-Status 'Wait for the mod scan to finish.' 'warn'; return }
+    if (Test-GameRunning) { Set-Status 'Close R5Reloaded before installing mods.' 'warn'; return }
     if (-not (Test-Path -LiteralPath $script:ModsDir)) { New-Item -ItemType Directory -Path $script:ModsDir | Out-Null }
     $installed = @()
     $window.Cursor = [System.Windows.Input.Cursors]::Wait
@@ -2277,7 +2294,7 @@ function Ensure-Shortcut {
     } catch { Write-Log ('Shortcut: ' + $_.Exception.Message) }
 }
 
-function Test-GameRunning { return [bool](Get-Process -Name r5apex -ErrorAction SilentlyContinue) }
+function Test-GameRunning { return [bool](Get-Process -Name r5apex,r5apex_ds -ErrorAction SilentlyContinue) }
 
 function Launch-Game {
     if (-not (Require-Game)) { return }
@@ -2333,6 +2350,7 @@ $window.Add_PreviewKeyDown({
         elseif ($e.Key -eq 'Return') { $e.Handled = $true; Close-Dialog $true }
         return
     }
+    if ($e.Key -eq 'Escape' -and @($StoreBuild,$StoreSourceFilter,$StoreCategory,$StoreSort | Where-Object { $_.IsDropDownOpen }).Count -gt 0) { return }
     $control = [bool]([System.Windows.Input.Keyboard]::Modifiers -band [System.Windows.Input.ModifierKeys]::Control)
     $editing = [System.Windows.Input.Keyboard]::FocusedElement -is [System.Windows.Controls.Primitives.TextBoxBase]
     $action = Get-ShortcutAction $script:ActiveView ([string]$e.Key) $control $editing

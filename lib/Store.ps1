@@ -20,13 +20,19 @@ function Show-AppView([bool]$Store) {
     Set-NavActive $(if($Store){'store'}else{'library'})
 }
 
+function Get-StoreCategories([string]$Value) {
+    @($Value -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Sort-Object -Unique)
+}
+
 function Set-StoreFilters {
     $script:StoreFilterLoading = $true
     try {
         foreach ($pair in @(@($StoreBuild,'All builds','Build'), @($StoreSourceFilter,'All sources','Source'), @($StoreCategory,'All categories','Category'))) {
             $control = $pair[0]; $selected = [string]$control.SelectedItem
             $control.Items.Clear(); [void]$control.Items.Add($pair[1])
-            $values = @($script:StoreItems | ForEach-Object { $_.($pair[2]) } | Where-Object { $_ } | Sort-Object -Unique)
+            $values = @($script:StoreItems | ForEach-Object {
+                if ($pair[2] -eq 'Category') { Get-StoreCategories $_.Category } else { $_.($pair[2]) }
+            } | Where-Object { $_ } | Sort-Object -Unique)
             foreach ($value in $values) { [void]$control.Items.Add($value) }
             $control.SelectedIndex = 0
             if ($selected -and $control.Items.Contains($selected)) { $control.SelectedItem = $selected }
@@ -58,7 +64,7 @@ function Fill-Store {
     foreach ($entry in $script:StoreItems) {
         if ($StoreBuild.SelectedIndex -gt 0 -and $entry.Build -ne [string]$StoreBuild.SelectedItem) { continue }
         if ($StoreSourceFilter.SelectedIndex -gt 0 -and $entry.Source -ne [string]$StoreSourceFilter.SelectedItem) { continue }
-        if ($StoreCategory.SelectedIndex -gt 0 -and $entry.Category -ne [string]$StoreCategory.SelectedItem) { continue }
+        if ($StoreCategory.SelectedIndex -gt 0 -and (Get-StoreCategories $entry.Category) -notcontains [string]$StoreCategory.SelectedItem) { continue }
         if ($StoreFavoritesOnly.IsChecked -and $script:FavoriteKeys -notcontains $entry.Key) { continue }
         $hay = $entry.Name + ' ' + $entry.Author + ' ' + $entry.Description + ' ' + $entry.ModId
         if ($query -and $hay.IndexOf($query,[StringComparison]::OrdinalIgnoreCase) -lt 0) { continue }
@@ -107,11 +113,15 @@ function Show-StoreDetails {
     $BtnStoreInstall.IsEnabled = $false
     $BtnStoreInstall.Content = 'Install'
     if ($entry.Build -ne 'R5Reloaded S3') {
-        $StoreCompatibility.Text = 'Requires ' + $entry.Build + '. The selected game uses R5Reloaded S3.'
+        $StoreCompatibility.Text = if ($script:GameDir) { 'Requires ' + $entry.Build + '. The selected game uses R5Reloaded S3.' } else { 'Requires ' + $entry.Build + '. Installation is supported for R5Reloaded S3 only.' }
         $BtnStoreInstall.Content = 'Different game build'
     } elseif ($entry.InstallKind -eq 'manual') {
         $StoreCompatibility.Text = 'Follow the installation instructions on the source page.'
         $BtnStoreInstall.Content = 'Manual installation'
+    } elseif (-not $script:GameDir) {
+        $StoreCompatibility.Text = 'Choose the R5Reloaded game folder before installing mods.'
+        $BtnStoreInstall.Content = 'Choose game folder'
+        $BtnStoreInstall.IsEnabled = -not $script:PackageJob -and -not $script:ModScan
     } else {
         $StoreCompatibility.Text = 'Installs to the selected R5Reloaded mods folder. Existing copies require replacement confirmation.'
         $BtnStoreInstall.Content = switch ($status) { 'Update available' {'Update'} 'Installed' {'Reinstall'} 'Newer installed' {'Install older version'} 'Different version' {'Change version'} default {'Install'} }
@@ -149,10 +159,11 @@ function Start-StoreSync([bool]$Force = $false) {
 function Start-StoreInstall($EntryOverride = $null) {
     $row = $StoreList.SelectedItem
     if ((-not $row -and -not $EntryOverride) -or $script:PackageJob -or $script:ModScan -or $script:DlJob) { return }
-    if (-not (Require-Game)) { return }
-    if (Test-GameRunning) { Set-Status 'Close R5Reloaded before installing mods.' 'warn'; $StoreProgressText.Text = 'Close R5Reloaded before installing mods.'; return }
     $entry = if ($EntryOverride) { $EntryOverride } else { Get-StoreEntry }
     if ($entry.Build -ne 'R5Reloaded S3' -or $entry.InstallKind -eq 'manual') { return }
+    if (-not $script:GameDir) { Browse-GameDir; return }
+    if (-not (Require-Game)) { return }
+    if (Test-GameRunning) { Set-Status 'Close R5Reloaded before installing mods.' 'warn'; $StoreProgressText.Text = 'Close R5Reloaded before installing mods.'; return }
     foreach ($dependency in @($entry.Dependencies)) {
         if (-not (Get-ModById $dependency)) { [void](Show-Dialog 'Missing dependency' ('Install ' + $dependency + ' before installing this mod.') 'OK' '' 'warn'); return }
     }

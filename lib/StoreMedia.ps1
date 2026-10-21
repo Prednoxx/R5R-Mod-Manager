@@ -13,7 +13,7 @@ function Get-StoreEntry {
 
 function Set-NavActive([string]$Name) {
     foreach ($pair in @(@($BtnNavStore,'store'),@($BtnNavLibrary,'library'),@($BtnNavDownloads,'downloads'),@($BtnNavSettings,'settings'))) {
-        $pair[0].Background = $window.FindResource($(if($pair[1] -eq $Name){'RowSel'}else{'WindowBg'}))
+        $pair[0].SetResourceReference([Windows.Controls.Control]::BackgroundProperty, $(if($pair[1] -eq $Name){'RowSel'}else{'WindowBg'}))
     }
 }
 

@@ -34,6 +34,7 @@ function Require-Game { return $true }
 function Set-Status([string]$Text, [string]$Kind) {}
 function Update-UI {}
 function Reload-All {}
+function Test-GameRunning { return $false }
 function Show-Dialog { return $script:Approve }
 function Remove-ToRecycleBin([string]$Path) { [IO.Directory]::Move($Path, (Join-Path $sandbox ('recycled-' + [guid]::NewGuid().ToString('N')))) }
 $script:Approve = $true
@@ -210,6 +211,7 @@ try {
         Install-Paths @($prepared.Path) -MoveStaged
         Assert ((Test-Path (Join-Path $script:ModsDir 'movementgym/mod.vdf')) -and $script:ModState['movementgym'] -eq '1') 'Live catalog package installed into the isolated game'
     }
+    . (Join-Path $PSScriptRoot 'usage.ps1')
     Write-Output ($script:Passed.ToString() + ' checks passed.')
 } finally {
     $full = [IO.Path]::GetFullPath($sandbox)

@@ -47,6 +47,8 @@ Settings, favorites, installed-package receipts, catalog snapshots, previews and
 
 [Catalog sources and feed format](docs/catalog.md)
 
+[Usage guide](docs/usage.md)
+
 ## Credits and license
 
 Copyright (C) 2026 Prednoxx. Software licensed under the GNU Affero General Public License v3.0 or later. See [LICENSE](LICENSE).
