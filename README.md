@@ -1,55 +1,55 @@
 # R5R Mod Manager
 
-Mod manager for [R5Reloaded](https://r5reloaded.com). Works with the R5Reloaded mod system (`mods\<mod>\mod.vdf` and `mods\mods.vdf`).
+Windows mod manager for [R5Reloaded](https://r5reloaded.com).
+
+## Run
+
+Extract the portable package and open **R5R Mod Manager.exe**. Keep `app.ps1`, `assets`, `catalog`, `lib` and `ui` beside the executable. The app detects an existing game folder or accepts one in Settings.
+
+Requires Windows 10 or 11, .NET Framework 4.8 and Windows PowerShell 5.1. These are included with supported Windows installations. The executable hosts the application directly without opening a console window.
 
 ## Features
 
-- Turn mods on and off, install from `.zip` or folder (drag and drop works), uninstall to the Recycle Bin
-- Presets: save which mods are on and switch between setups in one click
-- Required core mods (Flowstate, SDK core) are locked on
-- Dependency check: flags mods that need a missing or disabled mod, with one-click fix
-- Restore mods from the Recycle Bin, or download R5Reloaded's stock mods from the official scripts repo
-- Problem detection: missing `mod.vdf`, missing ID, duplicate IDs, nested folders
-- Themes: Aero Day, Aero Night, Aqua, Aurora, Eco, Metro, Sunburst, Sweetheart, Windows 11 (follows system light/dark and accent color)
+- Image-based mod store with search, build/source/category filters, sorting and favorites.
+- Mod pages with publisher previews, descriptions, gallery images, version information and installation controls.
+- GitHub and Thunderstore catalog providers, maintained feeds, background synchronization and offline cache.
+- R5Reloaded S3 compatibility checks. Flowstate S21 and legacy releases remain available as source listings.
+- Background downloads, integrity checks, staged installation, replacement confirmation and rollback.
+- Installed-mod switches, dependency checks, presets, local ZIP/folder installation and Recycle Bin recovery.
+- Obsidian, Windows 11 and the existing wallpaper themes.
 
-## Requirements
+The installer supports the R5Reloaded S3 layout: `mods/<folder>/mod.vdf` and `mods/mods.vdf`. The store does not convert mods between game builds. Listings without publisher artwork display a labeled placeholder.
 
-- Windows 10 or 11
-- R5Reloaded installed
-
-## Install
-
-1. Download or clone this repo. Keep the `assets` folder next to `R5R Mod Manager.cmd`.
-2. Run `R5R Mod Manager.cmd`. It finds your R5Reloaded folder automatically, or set it with **Change**.
-3. A shortcut with the app icon is created next to the script on first run.
-
-## Shortcuts
+## Controls
 
 | Key | Action |
 | --- | --- |
-| Ctrl+F | Search |
-| F5 | Rescan mods |
-| Delete | Uninstall selected mod |
+| Ctrl+F | Focus search |
+| F5 | Refresh the current store or library |
+| Escape | Close an image preview or return from mod details |
+| Enter | Open the selected store mod |
+| Delete | Uninstall the selected library mod |
 
-## Mod dependencies
+## Build and test
 
-Dependencies are detected from scripts that use ConVars defined by another mod. A mod can also list them in its `mod.vdf`:
-
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File build.ps1 -Package
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/run.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/run.ps1 -Live
 ```
-"Dependencies"
-{
-    "Flowstate" "1"
-}
-```
 
-## Data and privacy
+The build uses the Windows .NET Framework compiler. The portable archive is written to `dist/R5R-Mod-Manager-3.2.zip`. Tests use temporary game folders. `-Live` also checks the configured sources and downloads a pinned official mod.
 
-Settings are stored in `%APPDATA%\R5RModManager`. The app only connects to the internet when you choose to download a stock mod, and then only to GitHub (`github.com/Mauler125/r5_flowstate`).
+## Data
 
-## Credits
+Settings, favorites, installed-package receipts, catalog snapshots, previews and logs are stored in `%APPDATA%/R5RModManager`. The app contacts configured catalog sources at startup and during refresh. Mod descriptions and previews load from their publishers; packages download only after an installation action. Source pages open in the default browser.
 
-Mascot: Lumi-tan, sprite by [blackbunney](https://blackbunney.itch.io/free-anime-girl-character-sprite). The sprite may not be resold on its own.
+[Catalog sources and feed format](docs/catalog.md)
 
-R5R Mod Manager is a fan-made tool and is not affiliated with Electronic Arts, Respawn Entertainment or the R5Reloaded team.
+## Credits and license
 
-Copyright (C) 2026 Prednoxx. Licensed under the GNU Affero General Public License v3.0 or later (`LICENSE`). The Lumi-tan sprite is not covered by the software license.
+Copyright (C) 2026 Prednoxx. Software licensed under the GNU Affero General Public License v3.0 or later. See [LICENSE](LICENSE).
+
+Lumi-tan sprite by [blackbunney](https://blackbunney.itch.io/free-anime-girl-character-sprite). The sprite is not covered by the software license and may not be resold on its own. See `assets/CREDITS.txt` for asset credits. Publisher previews and mod packages retain their original ownership and licenses.
+
+R5R Mod Manager is not affiliated with Electronic Arts, Respawn Entertainment or the R5Reloaded team.

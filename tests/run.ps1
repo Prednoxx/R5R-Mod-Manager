@@ -139,6 +139,9 @@ try {
     Write-CatalogJson (Join-Path $feedDir 'mods.json') @{schemaVersion=1;mods=@()}
     $result = Sync-ModCatalog $feedDir $feedCache $true
     Assert ($result.Items.Count -eq 0) 'Removed listings disappear after successful synchronization'
+    [IO.File]::WriteAllText((Join-Path $feedDir 'mods.json'), '{invalid')
+    $result = Sync-ModCatalog $feedDir (Join-Path $sandbox 'empty-cache') $true
+    Assert ($result.Items.Count -eq 0 -and $result.Sources[0].Count -eq 0 -and $result.Sources[0].State -eq 'Unavailable') 'First-source failure reports zero listings'
     if ($Live) {
         $result = Sync-ModCatalog (Join-Path $root 'catalog') (Join-Path $sandbox 'live-cache') $true
         Assert (@($result.Sources | Where-Object State -ne 'Current').Count -eq 0) 'Live source synchronization'
@@ -147,6 +150,8 @@ try {
         $entry = $result.Items | Where-Object ModId -eq 'movementgym' | Select-Object -First 1
         $prepared = Prepare-CatalogPackage $entry (Join-Path $sandbox 'live-package') @{} (Join-Path $sandbox 'live-cache')
         Assert ((Read-ModVdf (Join-Path $prepared.Path 'mod.vdf')).Id -eq 'movementgym') 'Live pinned GitHub package downloaded and verified'
+        Install-Paths @($prepared.Path) -MoveStaged
+        Assert ((Test-Path (Join-Path $script:ModsDir 'movementgym/mod.vdf')) -and $script:ModState['movementgym'] -eq '1') 'Live catalog package installed into the isolated game'
     }
     Write-Output ($script:Passed.ToString() + ' checks passed.')
 } finally {

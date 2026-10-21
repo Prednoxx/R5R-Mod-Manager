@@ -87,7 +87,7 @@ $mediaTimer.Add_Tick({
                     $details=$result[-1]
                     $StoreDetailDescription.Text = $details.Body
                     $images=@(foreach ($path in @($details.Images)) { if (Test-Path -LiteralPath $path) { Load-Bitmap $path 1200 } })
-                    $StoreGallery.ItemsSource=@($details.Images)
+                    $StoreGallery.ItemsSource=[string[]]@($details.Images)
                     $StoreGalleryWrap.Visibility=if($images.Count -gt 0){'Visible'}else{'Collapsed'}
                     if ($images.Count -gt 0) { $StoreHero.Source=$images[0] }
                 }

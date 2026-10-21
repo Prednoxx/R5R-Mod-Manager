@@ -172,6 +172,7 @@ function Sync-ModCatalog([string]$CatalogDir, [string]$CacheDir, [bool]$Force = 
         $state = 'Current'; $errorText = ''
         $due = $true
         if ($snapshot -and $snapshot.nextCheck) { try { $due = [DateTime]::Parse($snapshot.nextCheck).ToUniversalTime() -le $now } catch {} }
+        if ($source.type -eq 'feed' -and $source.path) { $due = $true }
         if ($Force -or $due -or -not $snapshot) {
             $Progress.Text = 'Updating ' + $source.name
             try {
@@ -198,7 +199,7 @@ function Sync-ModCatalog([string]$CatalogDir, [string]$CacheDir, [bool]$Force = 
                 if (-not $merged.ContainsKey($identity)) { $merged[$identity] = $item }
             }
         }
-        $states += [pscustomobject]@{Name=$source.name; State=$state; Error=$errorText; Updated=if($snapshot){$snapshot.updated}else{''}; Count=@($snapshot.items).Count}
+        $states += [pscustomobject]@{Name=$source.name; State=$state; Error=$errorText; Updated=if($snapshot){$snapshot.updated}else{''}; Count=if($snapshot){@($snapshot.items).Count}else{0}}
     }
     [pscustomobject]@{Items=@($merged.Values | Sort-Object Name); Sources=$states}
 }

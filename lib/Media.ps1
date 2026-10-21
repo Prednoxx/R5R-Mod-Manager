@@ -48,12 +48,15 @@ function Sync-CatalogImages($Items, [string]$CacheDir, $Queue) {
 function Get-CatalogDetails($Entry, [string]$CacheDir) {
     $path = Join-Path $CacheDir ('details/' + (Get-MediaKey ($Entry.Key + ':' + $Entry.Version + ':' + $Entry.Commit)) + '.json')
     $cached = Read-CatalogJson $path
-    if ($cached) { return $cached }
+    if ($cached -and $cached.Updated) {
+        try { if ([DateTime]::Parse($cached.Updated).ToUniversalTime() -gt [DateTime]::UtcNow.AddHours(-1)) { return $cached } } catch {}
+    }
     $body = $Entry.Description
     $urls = @($Entry.PreviewUrls | Where-Object { $_ })
     if ($Entry.SourceId -eq 'flowstate-thunderstore' -and $Entry.ModId -match '^([\w-]+)\.([\w-]+)$' -and $Entry.Version -match '^[\w.-]+$') {
         $parts=$Entry.ModId -split '\.',2; $namespace=$parts[0]; $name=$parts[1]
-        $readme = Get-CatalogHttp ('https://thunderstore.io/api/experimental/package/' + $namespace + '/' + $name + '/' + $Entry.Version + '/readme/') $CacheDir
+        try { $readme = Get-CatalogHttp ('https://thunderstore.io/api/experimental/package/' + $namespace + '/' + $name + '/' + $Entry.Version + '/readme/') $CacheDir }
+        catch { if ($cached) { return $cached }; throw }
         if ($readme.markdown) {
             $body = [string]$readme.markdown
             foreach ($match in [regex]::Matches($body, '!\[[^\]]*\]\((https://[^\s)]+)(?:\s+"[^"]*")?\)')) { $urls += $match.Groups[1].Value }
@@ -70,7 +73,7 @@ function Get-CatalogDetails($Entry, [string]$CacheDir) {
     $body = [regex]::Replace($body,'(?m)^#{1,6}\s+','')
     $body = [regex]::Replace($body,'\[([^\]]+)\]\((https://[^)]+)\)','$1 ($2)')
     $body = [Net.WebUtility]::HtmlDecode($body).Trim()
-    $result = [pscustomobject]@{Key=$Entry.Key;Body=$body;Images=$images}
+    $result = [pscustomobject]@{Key=$Entry.Key;Body=$body;Images=$images;Updated=[DateTime]::UtcNow.ToString('o')}
     Write-CatalogJson $path $result
     return $result
 }

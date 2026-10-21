@@ -44,7 +44,7 @@ function Get-StoreStatus($Entry) {
         } elseif ($Entry.Version -ne $installed.Version) { return 'Different version' }
     }
     $receipt = $script:StoreReceipts.PSObject.Properties[$Entry.ModId]
-    if ($receipt -and $receipt.Value.Key -eq $Entry.Key -and $Entry.Commit -and $receipt.Value.Commit -ne $Entry.Commit) { return 'Update available' }
+    if ($receipt -and $receipt.Value.GameDir -eq $script:GameDir -and $receipt.Value.Key -eq $Entry.Key -and $Entry.Commit -and $receipt.Value.Commit -ne $Entry.Commit) { return 'Update available' }
     return 'Installed'
 }
 
@@ -61,7 +61,6 @@ function Fill-Store {
         $hay = $entry.Name + ' ' + $entry.Author + ' ' + $entry.Description + ' ' + $entry.ModId
         if ($query -and $hay.IndexOf($query,[StringComparison]::OrdinalIgnoreCase) -lt 0) { continue }
         $previewPath=Get-PreviewPath $entry $script:StoreCache
-        $preview=if($previewPath){Load-Bitmap $previewPath 480}else{$null}
         $stats=if($entry.Downloads -gt 0){'{0:N0} downloads' -f $entry.Downloads}else{$entry.Source}
         $rows += New-Object R5MM.CatalogCard -Property @{Key=$entry.Key; Name=$entry.Name; Author=$entry.Author; AuthorLabel=('By '+$entry.Author); Description=$entry.Description; Source=$entry.Source; Build=$entry.Build; Category=$entry.Category; Status=(Get-StoreStatus $entry); Entry=$entry; PreviewPath=$previewPath; Stats=$stats; CanInstall=($entry.Build -eq 'R5Reloaded S3' -and $entry.InstallKind -ne 'manual' -and -not $script:PackageJob -and -not $script:ModScan)}
     }
@@ -210,7 +209,7 @@ $storeTimer.Add_Tick({
                 if ($script:ModScan -or $script:DlJob) { throw 'A mod operation is still running. Select the mod again to install.' }
                 Install-Paths @($result[-1].Path) -MoveStaged
                 if ($script:LastInstalledIds -contains $job.Entry.ModId) {
-                    $receipt = [pscustomobject]@{Key=$job.Entry.Key; Version=$job.Entry.Version; Commit=$job.Entry.Commit; Installed=[DateTime]::UtcNow.ToString('o')}
+                    $receipt = [pscustomobject]@{Key=$job.Entry.Key; GameDir=$script:GameDir; Version=$job.Entry.Version; Commit=$job.Entry.Commit; Installed=[DateTime]::UtcNow.ToString('o')}
                     $script:StoreReceipts | Add-Member -NotePropertyName $job.Entry.ModId -NotePropertyValue $receipt -Force
                     Write-CatalogJson (Join-Path $SettingsDir 'installed-packages.json') $script:StoreReceipts
                     $StoreProgressText.Text = 'Installed ' + $job.Entry.Name
@@ -227,7 +226,7 @@ $storeTimer.Add_Tick({
             }
         }
     }
-    if (-not $script:StoreJob -and -not $script:PackageJob) { $storeTimer.Stop() }
+    if (-not $script:StoreJob -and -not $script:PackageJob -and $script:PackageQueue.Count -eq 0) { $storeTimer.Stop() }
     if ($script:PackageQueue.Count -gt 0 -and -not $script:PackageJob -and -not $script:ModScan) {
         Start-StoreInstall ($script:PackageQueue.Dequeue())
     }

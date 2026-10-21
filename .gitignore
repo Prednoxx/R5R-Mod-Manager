@@ -1,3 +1,5 @@
 Thumbs.db
 *.log
 *.lnk
+dist/
+Mod Manager Build Related/

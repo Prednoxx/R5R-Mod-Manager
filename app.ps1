@@ -699,7 +699,7 @@ $xaml = @'
             </Grid.RowDefinitions>
 
             <!-- toolbar -->
-            <DockPanel Margin="12,12,12,0" LastChildFill="False">
+            <WrapPanel Margin="12,12,12,0">
               <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                 <Button x:Name="BtnInstallZip" Style="{StaticResource BtnAccent}">
                   <StackPanel Orientation="Horizontal">
@@ -722,7 +722,7 @@ $xaml = @'
                          CaretBrush="{DynamicResource Text}" SelectionBrush="{DynamicResource Accent}" FontSize="13"
                          VerticalContentAlignment="Center" Margin="28,0,6,0"/>
               </Grid>
-            </DockPanel>
+            </WrapPanel>
 
             <!-- presets -->
             <Border Grid.Row="1" Margin="12,10,12,0" Background="{DynamicResource Inset}" CornerRadius="{DynamicResource RadiusSmall}" Padding="10,6">
@@ -2115,7 +2115,6 @@ function Queue-StockDownload($Entry) {
     $StoreSearch.Text = $match.Name
     $StoreBuild.SelectedIndex = 0; $StoreSourceFilter.SelectedIndex = 0; $StoreCategory.SelectedIndex = 0
     Fill-Store
-    Start-StoreInstall ($script:PackageQueue.Dequeue())
 }
 
 function Install-StockMods($Entries) {

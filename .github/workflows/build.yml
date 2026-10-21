@@ -1,0 +1,19 @@
+name: Windows build
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run regression tests
+        shell: powershell
+        run: ./tests/run.ps1
+      - name: Build portable package
+        shell: powershell
+        run: ./build.ps1 -Package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: R5R-Mod-Manager-3.2
+          path: dist/R5R-Mod-Manager-3.2.zip
