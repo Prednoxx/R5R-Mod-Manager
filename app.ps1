@@ -1,5 +1,5 @@
 ﻿# =====================================================================
-#  R5R Mod Manager 3.1 - Prednoxx
+#  R5R Mod Manager 3.2 - Prednoxx
 #  R5Reloaded mod system:
 #    <game>\mods\<ModFolder>\mod.vdf   mod info
 #    <game>\mods\mods.vdf               "ModList" { "<id>" "1|0" }
@@ -47,6 +47,27 @@ using System.ComponentModel;
 using System.Runtime.InteropServices;
 
 namespace R5MM {
+    public class CatalogCard : INotifyPropertyChanged {
+        public event PropertyChangedEventHandler PropertyChanged;
+        public string Key { get; set; }
+        public string Name { get; set; }
+        public string Author { get; set; }
+        public string AuthorLabel { get; set; }
+        public string Description { get; set; }
+        public string Source { get; set; }
+        public string Build { get; set; }
+        public string Category { get; set; }
+        public string Status { get; set; }
+        public string Stats { get; set; }
+        public bool CanInstall { get; set; }
+        public object Entry { get; set; }
+        private string previewPath;
+        public string PreviewPath {
+            get { return previewPath; }
+            set { previewPath = value; var handler = PropertyChanged; if (handler != null) handler(this, new PropertyChangedEventArgs("PreviewPath")); }
+        }
+        public override string ToString() { return Name; }
+    }
     public class ModItem : INotifyPropertyChanged {
         public event PropertyChangedEventHandler PropertyChanged;
         void Notify(string p) { var h = PropertyChanged; if (h != null) h(this, new PropertyChangedEventArgs(p)); }
@@ -196,6 +217,7 @@ $Catalog = @(
 # ================================================================ themes
 # Light = white glass, dark text.  Dark = tinted glass, light text.
 $Themes = [ordered]@{
+    obsidian   = @{ Name = 'Obsidian'; Dark = $true; Tint = '171614'; Tint2 = '11110F'; Flat = $true; Obsidian = $true }
     aero_day   = @{ Name = 'Aero Day';   Dark = $false; Tint = 'FFFFFF'; Tint2 = 'E9F4FC'; Flat = $false }
     aero_night = @{ Name = 'Aero Night'; Dark = $true;  Tint = '1E1238'; Tint2 = '140C28'; Flat = $false }
     aqua       = @{ Name = 'Aqua';       Dark = $false; Tint = 'FFFFFF'; Tint2 = 'E4F7F8'; Flat = $false }
@@ -553,6 +575,7 @@ $xaml = @'
       <Setter Property="Foreground" Value="{DynamicResource Text}"/>
       <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
+    <!-- store resources -->
   </Window.Resources>
 
   <Grid x:Name="Root">
@@ -566,8 +589,8 @@ $xaml = @'
         <RowDefinition Height="*"/>
       </Grid.RowDefinitions>
       <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="220"/>
         <ColumnDefinition Width="*"/>
-        <ColumnDefinition Width="250"/>
       </Grid.ColumnDefinitions>
 
       <!-- title bar -->
@@ -593,8 +616,10 @@ $xaml = @'
         <TextBlock x:Name="TitleLabel" Text="R5R Mod Manager" FontSize="15" Foreground="{DynamicResource TitleText}" VerticalAlignment="Center">
           <TextBlock.Effect><DropShadowEffect BlurRadius="8" ShadowDepth="0" Opacity="0.7" Color="#000000"/></TextBlock.Effect>
         </TextBlock>
+
       </StackPanel>
       <StackPanel Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
+        <Button x:Name="BtnGlobalLaunch" Style="{StaticResource TitlePill}" Content="Launch R5Reloaded" Margin="0,9,12,0"/>
         <Button x:Name="BtnTheme" Style="{StaticResource TitlePill}" Margin="0,9,10,0" VerticalAlignment="Top">
           <StackPanel Orientation="Horizontal">
             <TextBlock Text="&#xE790;" FontFamily="Segoe MDL2 Assets" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0"/>
@@ -612,7 +637,7 @@ $xaml = @'
              Width="320" Margin="0,0,-12,0" IsHitTestVisible="False" RenderOptions.BitmapScalingMode="HighQuality"/>
 
       <!-- content -->
-      <Grid Grid.Row="1" Grid.Column="0" Margin="14,6,0,14">
+      <Grid x:Name="LibraryView" Grid.Row="1" Grid.Column="1" Margin="18,18,20,14" Visibility="Collapsed">
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto"/>
           <RowDefinition Height="*"/>
@@ -867,6 +892,9 @@ $xaml = @'
           </Grid>
         </ContentControl>
       </Grid>
+      <!-- sidebar -->
+      <!-- store view -->
+      <!-- utility view -->
     </Grid>
 
     <!-- drag overlay -->
@@ -908,6 +936,10 @@ $xaml = @'
 </Window>
 '@
 
+foreach ($part in @(@('store resources','Resources.xaml'),@('sidebar','Sidebar.xaml'),@('store view','Store.xaml'),@('utility view','Utility.xaml'))) {
+    $xaml = $xaml.Replace(('<!-- '+$part[0]+' -->'), [IO.File]::ReadAllText((Join-Path $AppDir ('ui/'+$part[1]))))
+}
+if ($env:R5MM_DIAGNOSTICS) { $listener=New-Object Diagnostics.TextWriterTraceListener((Join-Path $SettingsDir 'bindings.log')); [void][Diagnostics.PresentationTraceSources]::DataBindingSource.Listeners.Add($listener); [Diagnostics.PresentationTraceSources]::DataBindingSource.Switch.Level='All' }
 Trace 'xaml'
 try {
     $window = [System.Windows.Markup.XamlReader]::Parse($xaml)
@@ -920,6 +952,7 @@ foreach ($n in ([regex]::Matches($xaml, 'x:Name="(\w+)"') | ForEach-Object { $_.
     $el = $window.FindName($n)
     if ($el) { Set-Variable -Name $n -Value $el -Scope Script }
 }
+$window.Resources['StoreCardWidth'] = [double]232
 $ModList.ItemsSource = $script:Items
 $FooterText.Text = 'v' + $AppVersion + '  ' + [char]0x00B7 + '  Prednoxx'
 
@@ -1027,6 +1060,18 @@ function Apply-Theme([string]$Key) {
         }
     }
 
+    if ($t.Obsidian) {
+        $font='Segoe UI'; $gloss='0'; $radius='8'; $radiusSmall='4'
+        $v.WindowBg='11110F'; $v.PanelBg='1B1917'; $v.PanelBorder='302D27'; $v.PanelEdge='00000000'
+        $v.Text='F4F1E8'; $v.TextDim='B0ADA4'; $v.TextFaint='827F77'; $v.TitleText='F4F1E8'; $v.TitleHover='292722'
+        $v.Divider='302D27'; $v.Inset='24211D'; $v.InputBg='11110F'; $v.InputBorder='35312A'
+        $v.BtnBg='171613'; $v.BtnBorder='35312A'; $v.BtnHoverBg='2A2721'; $v.BtnHoverBorder='827663'
+        $v.RowHover='302B22'; $v.RowSel='373024'; $v.RowSelBorder='9C8D6B'
+        $v.MenuBg='1B1917'; $v.WallShade='00000000'; $v.PillBg='171613'; $v.PillBorder='35312A'; $v.PillHover='292722'
+        $v.Accent='F0E2B9'; $v.AccentStrong='F0E2B9'; $v.AccentBg='F0E2B9'; $v.AccentBorder='D1BF91'; $v.AccentText='211E17'
+        $v.TagOffBg='302B22'; $v.TagOffText='B0ADA4'; $v.TrackOff='24211D'; $v.TrackOffBorder='827F77'
+    }
+
     $sb = New-Object System.Text.StringBuilder
     [void]$sb.Append('<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:sys="clr-namespace:System;assembly=mscorlib">')
     foreach ($k in $v.Keys) {
@@ -1049,7 +1094,7 @@ function Apply-Theme([string]$Key) {
     $wp = $null
     if (-not $t.Win11) { $wp = Load-Bitmap (Join-Path $AssetDir ('themes\' + $Key + '.jpg')) }
     if ($wp) { $Wallpaper.Source = $wp } else { $Wallpaper.Source = $null }
-    if ($t.Win11) {
+    if ($t.Win11 -or $t.Obsidian) {
         $TitleShade.Visibility = 'Collapsed'; $TitleGloss.Visibility = 'Collapsed'; $TitleLabel.Effect = $null
     } else {
         $TitleShade.Visibility = 'Visible'; $TitleGloss.Visibility = 'Visible'
@@ -1315,6 +1360,7 @@ function Save-Settings {
         if (-not (Test-Path -LiteralPath $SettingsDir)) { New-Item -ItemType Directory -Path $SettingsDir | Out-Null }
         $data = [ordered]@{
             GameDir      = $script:GameDir
+            StoreLayoutVersion = 1
             Theme        = $script:Theme
             ActivePreset = $script:ActivePreset
             Presets      = $script:Presets
@@ -1330,6 +1376,8 @@ function Set-GameDir([string]$Dir) {
     $script:ModListPath = Join-Path $script:ModsDir 'mods.vdf'
     if (-not ($script:Installs -contains $Dir)) { $script:Installs.Insert(0, $Dir) }
     $GamePath.Text = $Dir
+    $SettingsGamePath.Text = $Dir
+    $SidebarGameStatus.Text = 'R5Reloaded S3 selected'
     Save-Settings
     Reload-All
 }
@@ -1346,6 +1394,7 @@ function Set-Status([string]$Text, [string]$Kind = 'info') {
         default { $StatusDot.Fill = $window.FindResource('TextFaint') }
     }
     $StatusText.Text = $Text
+    if ($env:R5MM_DIAGNOSTICS) { $listener.Flush() }
 }
 
 function Open-Dialog([string]$Title, [string]$Message, [string]$Ok, [string]$Cancel, [string]$Kind, [bool]$WithInput, [string]$InputText) {
@@ -1620,6 +1669,7 @@ function Pick-Folder([string]$Title, [string]$Initial) {
 
 # ================================================================ actions
 function Set-ModEnabled([R5MM.ModItem]$Mod) {
+    if ($script:ModScan) { Set-Status 'Wait for the mod scan to finish.' 'warn'; return }
     if (-not $Mod.Id) { return }
     $v = '0'; if ($Mod.Enabled) { $v = '1' }
     $script:ModState[$Mod.Id] = $v
@@ -1632,6 +1682,7 @@ function Set-ModEnabled([R5MM.ModItem]$Mod) {
 }
 
 function Set-AllEnabled([bool]$On) {
+    if ($script:ModScan) { Set-Status 'Wait for the mod scan to finish.' 'warn'; return }
     if (-not (Require-Game)) { return }
     foreach ($m in $script:Mods) {
         if (-not $m.Id) { continue }
@@ -1682,6 +1733,7 @@ function Get-StateSnapshot {
 }
 
 function Apply-Preset([string]$Name) {
+    if ($script:ModScan) { Set-Status 'Wait for the mod scan to finish.' 'warn'; return }
     if (-not (Require-Game)) { return }
     if (-not $script:Presets.Contains($Name)) { return }
     $p = $script:Presets[$Name]
@@ -1791,7 +1843,8 @@ function Show-ThemeMenu {
 }
 
 # ---- install / uninstall
-function Install-Paths([string[]]$Paths) {
+function Install-Paths([string[]]$Paths, [switch]$MoveStaged) {
+    $script:LastInstalledIds = @()
     if (-not (Require-Game)) { return }
     if ($script:ModScan) { Set-Status 'Wait for the mod scan to finish.' 'warn'; return }
     if (-not (Test-Path -LiteralPath $script:ModsDir)) { New-Item -ItemType Directory -Path $script:ModsDir | Out-Null }
@@ -1811,7 +1864,7 @@ function Install-Paths([string[]]$Paths) {
                 Set-Status ('Unpacking ' + $leaf)
                 Update-UI
                 $tmp = Join-Path $env:TEMP ('r5mm_' + [guid]::NewGuid().ToString('N'))
-                [IO.Compression.ZipFile]::ExtractToDirectory($p, $tmp)
+                Expand-ModPackage $p $tmp
                 $src = $tmp; $fallback = [IO.Path]::GetFileNameWithoutExtension($p)
             } elseif ($p -match '\.(7z|rar)$') {
                 [void](Show-Dialog 'Unsupported archive' ($leaf + "`n`n.7z and .rar archives need to be extracted first. Install the extracted folder instead.") 'OK' '' 'warn')
@@ -1848,15 +1901,35 @@ function Install-Paths([string[]]$Paths) {
                     if ($info.Version) { $msg += 'New:  v' + $info.Version + "`n" } else { $msg += "New:  unknown version`n" }
                     $msg += "`nThe installed copy goes to the Recycle Bin."
                     if (-not (Show-Dialog 'Already installed' $msg 'Replace' 'Skip' 'warn')) { continue }
-                    foreach ($o in $existing) { if (Test-Path -LiteralPath $o.Folder) { Remove-ToRecycleBin $o.Folder } }
+
                 }
 
                 $dest = Join-Path $script:ModsDir $name
-                if (Test-Path -LiteralPath $dest) { Remove-ToRecycleBin $dest }
+                if ($existing.Count -gt 0) { $dest = $existing[0].Folder }
                 Set-Status ('Installing ' + $label)
                 Update-UI
-                Copy-Item -LiteralPath $r -Destination $dest -Recurse -Force
-                if ($info.Id) { $script:ModState[$info.Id] = '1' }
+                $backups = @()
+                try {
+                    $replace = @($existing | ForEach-Object { $_.Folder })
+                    if ((Test-Path -LiteralPath $dest) -and $replace -notcontains $dest) { $replace += $dest }
+                    foreach ($oldPath in $replace) {
+                        if (-not (Test-Path -LiteralPath $oldPath)) { continue }
+                        $backup = Join-Path $script:GameDir ('.r5mm-backup-' + [guid]::NewGuid().ToString('N'))
+                        [IO.Directory]::Move($oldPath, $backup)
+                        $backups += @{Original=$oldPath; Backup=$backup}
+                    }
+                    if ($MoveStaged) { [IO.Directory]::Move($r, $dest) }
+                    else { Copy-Item -LiteralPath $r -Destination $dest -Recurse -Force }
+                } catch {
+                    if (Test-Path -LiteralPath $dest) { Remove-ToRecycleBin $dest }
+                    foreach ($backup in $backups) { [IO.Directory]::Move($backup.Backup, $backup.Original) }
+                    throw
+                }
+                foreach ($backup in $backups) {
+                    try { Remove-ToRecycleBin $backup.Backup }
+                    catch { Write-Log ('Previous mod retained at ' + $backup.Backup) }
+                }
+                if ($info.Id) { $script:ModState[$info.Id] = '1'; $script:LastInstalledIds += $info.Id }
                 $installed += $label
             }
         } catch {
@@ -2031,81 +2104,18 @@ function Restore-ByName([string]$Name) {
     else { [void](Show-Dialog 'Restore failed' ($Name + ' could not be restored from the Recycle Bin.') 'OK' '' 'warn') }
 }
 
-# ---- stock mod downloads (GitHub, background)
-$DlScript = @'
-param($Repo, $Folder, $Dest, $Prog)
-$ErrorActionPreference = 'Stop'
-[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-function New-Wc { $w = New-Object Net.WebClient; $w.Headers.Add('User-Agent', 'R5R-Mod-Manager'); $w.Encoding = [Text.Encoding]::UTF8; return $w }
-function Get-Json([string]$Url) {
-    $w = New-Wc
-    try { return ($w.DownloadString($Url) | ConvertFrom-Json) }
-    catch [Net.WebException] {
-        $code = 0; try { $code = [int]$_.Exception.Response.StatusCode } catch {}
-        if ($code -eq 403) { throw 'GitHub rate limit reached. Try again in an hour.' }
-        throw
-    } finally { $w.Dispose() }
-}
-$Prog.Stage = 'lookup'
-$names = @((Get-Json ('https://api.github.com/repos/' + $Repo + '/branches?per_page=100')) | ForEach-Object { $_.name })
-$order = @($names | Where-Object { $_ -like 'r5r_scripts_*' } | Sort-Object -Descending) + @(@('PTU', 'retail') | Where-Object { $names -contains $_ })
-$files = New-Object System.Collections.Generic.List[object]
-$branch = $null
-foreach ($b in $order) {
-    $root = $null
-    try { $root = @(Get-Json ('https://api.github.com/repos/' + $Repo + '/contents/defaults/mods/' + $Folder + '?ref=' + $b)) } catch { continue }
-    if (-not ($root | Where-Object { $_.type -eq 'file' -and $_.name -ieq 'mod.vdf' })) { continue }
-    $branch = $b
-    $queue = New-Object System.Collections.Queue
-    $queue.Enqueue(@{ Items = $root; Rel = '' })
-    while ($queue.Count -gt 0) {
-        $q = $queue.Dequeue()
-        foreach ($e in $q.Items) {
-            if ($q.Rel) { $rel = $q.Rel + '\' + $e.name } else { $rel = $e.name }
-            if ($e.type -eq 'dir') { $queue.Enqueue(@{ Items = @(Get-Json $e.url); Rel = $rel }) }
-            elseif ($e.type -eq 'file') { $files.Add(@{ Url = $e.download_url; Rel = $rel; Size = [int64]$e.size }) }
-        }
-    }
-    break
-}
-if (-not $branch) { throw ($Folder + ' was not found in github.com/' + $Repo + '.') }
-$sum = [int64]0; foreach ($f in $files) { $sum += $f.Size }
-$Prog.Branch = $branch; $Prog.Total = $files.Count; $Prog.Bytes = $sum; $Prog.Stage = 'download'
-foreach ($f in $files) {
-    $out = Join-Path $Dest $f.Rel
-    $dir = Split-Path -Parent $out
-    if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
-    $w = New-Wc
-    try { $w.DownloadFile($f.Url, $out) } finally { $w.Dispose() }
-    $Prog.Done = $Prog.Done + 1
-    $Prog.DoneBytes = $Prog.DoneBytes + $f.Size
-}
-$branch
-'@
-
+# ---- stock mod downloads
 function Queue-StockDownload($Entry) {
-    $script:DlQueue.Enqueue($Entry)
-    if (-not $script:DlJob) { Start-NextDownload }
-}
-
-function Start-NextDownload {
-    if ($script:DlQueue.Count -eq 0) {
-        $script:DlJob = $null
-        $DlWrap.Visibility = 'Collapsed'
-        Reload-All
-        return
-    }
-    $c = $script:DlQueue.Dequeue()
-    $tmp = Join-Path $env:TEMP ('r5mm_dl_' + [guid]::NewGuid().ToString('N'))
-    New-Item -ItemType Directory -Path $tmp | Out-Null
-    $prog = [hashtable]::Synchronized(@{ Done = 0; Total = 0; Bytes = [int64]0; DoneBytes = [int64]0; Stage = ''; Branch = '' })
-    $ps = [powershell]::Create()
-    [void]$ps.AddScript($DlScript).AddArgument($StockRepo).AddArgument($c.Folder).AddArgument($tmp).AddArgument($prog)
-    $script:DlJob = @{ PS = $ps; Handle = $ps.BeginInvoke(); Entry = $c; Tmp = $tmp; Prog = $prog }
-    $DlFill.Width = 0
-    $DlWrap.Visibility = 'Visible'
-    Set-Status ('Downloading ' + $c.Name)
-    $dlTimer.Start()
+    $match = $script:StoreItems | Where-Object { $_.Build -eq 'R5Reloaded S3' -and $_.ModId -ieq $Entry.Id } | Select-Object -First 1
+    if (-not $match) { Set-Status 'Refresh the catalog before downloading this mod.' 'warn'; return }
+    $script:PackageQueue.Enqueue($match)
+    $storeTimer.Start()
+    if ($script:PackageJob) { return }
+    Show-AppView $true
+    $StoreSearch.Text = $match.Name
+    $StoreBuild.SelectedIndex = 0; $StoreSourceFilter.SelectedIndex = 0; $StoreCategory.SelectedIndex = 0
+    Fill-Store
+    Start-StoreInstall ($script:PackageQueue.Dequeue())
 }
 
 function Install-StockMods($Entries) {
@@ -2169,6 +2179,7 @@ function Show-RestoreMenu {
 }
 
 function Remove-SelectedMod {
+    if ($script:ModScan) { Set-Status 'Wait for the mod scan to finish.' 'warn'; return }
     $m = $ModList.SelectedItem
     if (-not $m) { return }
     $msg = 'The mod folder goes to the Recycle Bin.'
@@ -2284,11 +2295,12 @@ $window.Add_PreviewKeyDown({
         elseif ($e.Key -eq 'Return') { $e.Handled = $true; Close-Dialog $true }
         return
     }
+    if ($e.Key -eq 'Escape' -and $script:StoreMode) { if ($ImageOverlay.Visibility -eq 'Visible') { $ImageOverlay.Visibility='Collapsed' } else { Close-StoreDetail }; $e.Handled=$true; return }
     if ($e.Key -eq 'F' -and ([System.Windows.Input.Keyboard]::Modifiers -band [System.Windows.Input.ModifierKeys]::Control)) {
-        $e.Handled = $true; [void]$SearchBox.Focus(); return
+        $e.Handled = $true; if ($script:StoreMode) { [void]$StoreSearch.Focus() } else { [void]$SearchBox.Focus() }; return
     }
-    if ($e.Key -eq 'F5') { $e.Handled = $true; Invoke-Safe { if (Require-Game) { Reload-All; Set-Status 'Mods rescanned' } }; return }
-    if ($e.Key -eq 'Delete' -and -not $SearchBox.IsKeyboardFocusWithin) { $e.Handled = $true; Invoke-Safe { Remove-SelectedMod } }
+    if ($e.Key -eq 'F5') { $e.Handled = $true; Invoke-Safe { if ($script:StoreMode) { Start-StoreSync $true } elseif (Require-Game) { Reload-All } }; return }
+    if ($e.Key -eq 'Delete' -and -not $script:StoreMode -and -not $SearchBox.IsKeyboardFocusWithin) { $e.Handled = $true; Invoke-Safe { Remove-SelectedMod } }
 })
 
 # drag and drop
@@ -2356,7 +2368,7 @@ $BtnInstallDir.Add_Click({
 })
 $BtnEnableAll.Add_Click({ Invoke-Safe { Set-AllEnabled $true } })
 $BtnDisableAll.Add_Click({ Invoke-Safe { Set-AllEnabled $false } })
-$BtnRefresh.Add_Click({ Invoke-Safe { if (Require-Game) { Reload-All; Set-Status 'Mods rescanned' } } })
+$BtnRefresh.Add_Click({ Invoke-Safe { if (Require-Game) { Reload-All } } })
 $BtnPreset.Add_Click({ Invoke-Safe { Show-PresetMenu } })
 $BtnPresetSave.Add_Click({ Invoke-Safe { Save-CurrentPreset } })
 $BtnPresetNew.Add_Click({ Invoke-Safe { Save-NewPreset } })
@@ -2396,7 +2408,7 @@ $scanTimer.Add_Tick({
         foreach ($p in $res) { $ps = [string]$p; if ($ps -and -not ($script:Installs -contains $ps)) { $script:Installs.Add($ps) } }
         $window.Cursor = $null
         if (-not $script:GameDir) {
-            if ($script:Installs.Count -gt 0) { Set-GameDir $script:Installs[0]; Set-Status 'Ready' }
+            if ($script:Installs.Count -gt 0) { Set-GameDir $script:Installs[0] }
             else { Fill-List; Set-Status 'R5Reloaded not found. Set the game folder with Change.' 'warn' }
         }
     } catch {
@@ -2405,52 +2417,14 @@ $scanTimer.Add_Tick({
     }
 })
 
-# stock mod download watcher
-$dlTimer = New-Object System.Windows.Threading.DispatcherTimer
-$dlTimer.Interval = [TimeSpan]::FromMilliseconds(250)
-$dlTimer.Add_Tick({
-    try {
-        $j = $script:DlJob
-        if (-not $j) { $dlTimer.Stop(); return }
-        $p = $j.Prog
-        if ($p.Bytes -gt 0) {
-            $DlFill.Width = [Math]::Min(160.0, 160.0 * [double]$p.DoneBytes / [double]$p.Bytes)
-            Set-Status ('Downloading ' + $j.Entry.Name + '   ' + $p.Done + ' / ' + $p.Total)
-        }
-        if (-not $j.Handle.IsCompleted) { return }
-        $dlTimer.Stop()
-        $err = $null
-        try {
-            [void]$j.PS.EndInvoke($j.Handle)
-            if ($j.PS.Streams.Error.Count -gt 0) { $err = $j.PS.Streams.Error[0].ToString() }
-        } catch {
-            $err = $_.Exception.Message
-            if ($_.Exception.InnerException) { $err = $_.Exception.InnerException.Message }
-        }
-        $j.PS.Dispose()
-        if (-not $err) {
-            $dest = Join-Path $script:ModsDir $j.Entry.Folder
-            if (Test-Path -LiteralPath $dest) { Remove-ToRecycleBin $dest }
-            Copy-Item -LiteralPath $j.Tmp -Destination $dest -Recurse -Force
-            $script:ModState[$j.Entry.Id] = '1'
-            Save-ModState
-            Set-Status ('Installed ' + $j.Entry.Name) 'ok'
-        } else {
-            Write-Log ('Download ' + $j.Entry.Folder + ': ' + $err)
-            [void](Show-Dialog 'Download failed' ($j.Entry.Name + "`n`n" + $err) 'OK' '' 'warn')
-        }
-        Remove-Item -LiteralPath $j.Tmp -Recurse -Force -ErrorAction SilentlyContinue
-        $script:DlJob = $null
-        Start-NextDownload
-    } catch {
-        $dlTimer.Stop(); $script:DlJob = $null; $DlWrap.Visibility = 'Collapsed'
-        Write-Log ('Download: ' + $_.Exception.ToString())
-    }
-})
+foreach ($library in @('Catalog.ps1','Packages.ps1','Media.ps1','StoreMedia.ps1','Store.ps1')) {
+    . ([scriptblock]::Create([IO.File]::ReadAllText((Join-Path $AppDir ('lib/' + $library)))))
+}
 
 # ================================================================ start
 Trace 'settings'
 $savedDir = Load-Settings
+if (-not (Read-CatalogJson $SettingsFile).StoreLayoutVersion) { $script:Theme='obsidian' }
 Trace 'theme'
 Apply-Theme $script:Theme
 Trace 'show'
@@ -2463,12 +2437,15 @@ $window.Add_ContentRendered({
     Invoke-Safe {
         if ($savedDir -and (Test-GameDir $savedDir)) {
             Set-GameDir $savedDir
-            Set-Status 'Ready'
         } else {
             Fill-List
             Set-Status 'Looking for R5Reloaded'
             $window.Cursor = [System.Windows.Input.Cursors]::AppStarting
         }
+        Read-StoreCache
+        Show-AppView $true
+        Start-StoreSync
+        $storeRefreshTimer.Start()
         Trace 'scan start'
         if (-not $script:GameDir) { Start-InstallScan }
         $timer.Start()
@@ -2484,11 +2461,13 @@ try {
     Write-Log ('Runtime: ' + $_.Exception.ToString())
     [void][System.Windows.MessageBox]::Show($_.Exception.Message, $AppName)
 } finally {
+    $storeTimer.Stop(); $storeRefreshTimer.Stop(); $mediaTimer.Stop()
+    foreach ($job in @($script:StoreJob, $script:PackageJob, $script:MediaJob, $script:DetailJob)) { if ($job) { try { $job.PS.Stop(); $job.PS.Dispose() } catch {} } }
+    if ($script:PackageJob) { try { Remove-PackageStage $script:PackageJob.Stage $script:PackageJob.GameDir } catch {} }
     $modTimer.Stop()
     if ($script:ModScan) { try { $script:ModScan.PS.Stop(); $script:ModScan.PS.Dispose() } catch {} }
     $timer.Stop()
     $scanTimer.Stop()
-    $dlTimer.Stop()
     if ($script:DlJob) { try { $script:DlJob.PS.Stop(); $script:DlJob.PS.Dispose() } catch {} }
     if ($script:ScanPS) { try { $script:ScanPS.Stop(); $script:ScanPS.Dispose() } catch {} }
 }

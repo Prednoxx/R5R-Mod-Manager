@@ -1,0 +1,16 @@
+<Style x:Key="PreviewButton" TargetType="Button">
+  <Setter Property="Cursor" Value="Hand"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+  <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border Background="Transparent"><ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"/></Border></ControlTemplate></Setter.Value></Setter>
+</Style>
+<Style x:Key="SidebarButton" TargetType="Button" BasedOn="{StaticResource Btn}">
+  <Setter Property="HorizontalContentAlignment" Value="Left"/><Setter Property="Height" Value="36"/><Setter Property="Margin" Value="0,0,0,4"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderBrush" Value="Transparent"/><Setter Property="Padding" Value="12,0"/>
+</Style>
+<Style x:Key="StoreCombo" TargetType="ComboBox">
+  <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+  <Setter Property="ItemContainerStyle"><Setter.Value><Style TargetType="ComboBoxItem"><Setter Property="Foreground" Value="{DynamicResource Text}"/><Setter Property="Padding" Value="10,7"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ComboBoxItem"><Border x:Name="Item" Background="Transparent" Padding="{TemplateBinding Padding}"><ContentPresenter/></Border><ControlTemplate.Triggers><Trigger Property="IsHighlighted" Value="True"><Setter TargetName="Item" Property="Background" Value="{DynamicResource RowHover}"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style></Setter.Value></Setter>
+  <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ComboBox"><Grid>
+    <ToggleButton IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}" Focusable="False"><ToggleButton.Template><ControlTemplate TargetType="ToggleButton"><Border Background="{DynamicResource InputBg}" BorderBrush="{DynamicResource InputBorder}" BorderThickness="1" CornerRadius="4"><TextBlock Text="&#xE70D;" FontFamily="Segoe MDL2 Assets" FontSize="9" Foreground="{DynamicResource TextDim}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="10"/></Border></ControlTemplate></ToggleButton.Template></ToggleButton>
+    <ContentPresenter Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" Margin="10,0,25,0" VerticalAlignment="Center" IsHitTestVisible="False"/>
+    <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True" Focusable="False"><Border Background="{DynamicResource MenuBg}" BorderBrush="{DynamicResource InputBorder}" BorderThickness="1" CornerRadius="4" MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}" MaxHeight="300"><ScrollViewer><ItemsPresenter/></ScrollViewer></Border></Popup>
+  </Grid></ControlTemplate></Setter.Value></Setter>
+</Style>

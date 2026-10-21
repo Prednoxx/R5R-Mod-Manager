@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "mods": [
+    {
+      "id": "flowstate-legacy",
+      "name": "Flowstate Aim Trainer (legacy)",
+      "author": "CafeFPS",
+      "description": "Legacy scripts package. Installation replaces game scripts and requires the matching SDK and asset files. See the release instructions.",
+      "version": "",
+      "category": "Aim training",
+      "build": "Legacy S3",
+      "pageUrl": "https://github.com/CafeFPS/r5_flowstate/releases",
+      "installKind": "manual"
+    },
+    {
+      "id": "r5-community",
+      "name": "R5Reloaded community",
+      "author": "R5Reloaded",
+      "description": "Community releases, mod discussions and download links.",
+      "version": "",
+      "category": "Community",
+      "build": "Community",
+      "pageUrl": "https://discord.com/invite/r5reloaded",
+      "installKind": "manual"
+    }
+  ]
+}

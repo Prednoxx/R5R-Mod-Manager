@@ -1,0 +1,12 @@
+<Border Grid.Row="1" BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,1,0" Background="{DynamicResource WindowBg}">
+  <DockPanel Margin="10,18,10,14">
+    <StackPanel DockPanel.Dock="Top" Margin="10,0,0,24"><TextBlock Text="R5R Mod Manager" FontSize="17" FontWeight="SemiBold" Foreground="{DynamicResource Text}"/><TextBlock Text="3.2" FontSize="11" Foreground="{DynamicResource TextFaint}" Margin="0,5,0,0"/></StackPanel>
+    <StackPanel DockPanel.Dock="Bottom"><TextBlock x:Name="SidebarGameStatus" Text="Game not selected" Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap" Margin="12,0,10,12"/><Button x:Name="BtnSidebarSources" Style="{StaticResource SidebarButton}" Content="Catalog sources"/><TextBlock Text="Prednoxx" Foreground="{DynamicResource TextFaint}" FontSize="10" Margin="12,12,0,0"/></StackPanel>
+    <StackPanel>
+      <TextBlock Text="General" Foreground="{DynamicResource TextFaint}" FontSize="11" Margin="10,0,0,10"/>
+      <Button x:Name="BtnNavDownloads" Style="{StaticResource SidebarButton}" Content="Downloads"/><Button x:Name="BtnNavSettings" Style="{StaticResource SidebarButton}" Content="Settings"/>
+      <TextBlock Text="Mods" Foreground="{DynamicResource TextFaint}" FontSize="11" Margin="10,24,0,10"/>
+      <Button x:Name="BtnNavLibrary" Style="{StaticResource SidebarButton}" Content="Mods Library"/><Button x:Name="BtnNavStore" Style="{StaticResource SidebarButton}" Content="Mods Store"/>
+    </StackPanel>
+  </DockPanel>
+</Border>

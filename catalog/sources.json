@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "sources": [
+    {
+      "id": "r5-official",
+      "name": "R5Reloaded",
+      "type": "github-tree",
+      "repository": "Mauler125/r5_flowstate",
+      "refs": ["r5r_scripts_2025f", "retail"],
+      "root": "defaults/mods",
+      "build": "R5Reloaded S3",
+      "category": "Core & gameplay"
+    },
+    {
+      "id": "flowstate-thunderstore",
+      "name": "Thunderstore",
+      "type": "thunderstore",
+      "url": "https://thunderstore.io/c/r5flowstate/api/v1/package/",
+      "build": "Flowstate S21"
+    },
+    {
+      "id": "community",
+      "name": "Community catalog",
+      "type": "feed",
+      "path": "community.json"
+    }
+  ]
+}
