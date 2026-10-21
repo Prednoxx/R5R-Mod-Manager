@@ -10,7 +10,7 @@ if ($Package) {
     $staging = Join-Path $dist ('package-' + [guid]::NewGuid().ToString('N'))
     [void][IO.Directory]::CreateDirectory($staging)
     try {
-        foreach ($name in @('R5R Mod Manager.exe','app.ps1','assets','catalog','lib','ui','README.md','LICENSE')) {
+        foreach ($name in @('R5R Mod Manager.exe','app.ps1','assets','catalog','lib','ui','docs','README.md','LICENSE')) {
             Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $staging -Recurse -Force
         }
         Compress-Archive -Path (Join-Path $staging '*') -DestinationPath (Join-Path $dist 'R5R-Mod-Manager-3.2.zip') -Force
